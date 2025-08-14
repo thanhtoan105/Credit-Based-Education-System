@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { PageAccessGuard } from '@/components/dashboard/page-access-guard';
 import {
 	Card,
@@ -38,7 +38,9 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+
 import { toast } from '@/lib/toast';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Toaster } from '@/components/ui/sonner';
 import { Label } from '@/components/ui/label';
 import {
@@ -54,438 +56,530 @@ import {
 	UserSearch,
 	Calendar,
 	BookOpen,
-	RefreshCw,
-	LogOut,
-	X,
-	UserPlus,
-	Trash2,
 	CheckCircle,
-	XCircle,
 	GraduationCap,
 	Users,
-	Clock,
 	AlertCircle,
+	X,
 } from 'lucide-react';
+import { getCurrentUser } from '@/lib/session';
 
 // Types
-interface Student {
-	id: string;
-	lastName: string;
-	firstName: string;
-	classCode: string;
-	department: string;
+interface StudentInfo {
+	STUDENT_ID: string;
+	FULL_NAME: string;
+	CLASS_ID: string;
+	CLASS_NAME: string;
+	FACULTY_NAME: string;
 }
 
 interface CreditClass {
-	id: string;
-	courseName: string;
-	courseCode: string;
-	group: string;
-	instructorName: string;
-	minStudents: number;
-	registeredStudents: number;
-	maxStudents: number;
-	academicYear: string;
-	semester: string;
-	schedule: string;
-	isCancelled: boolean;
-	isOpen: boolean;
+	CREDIT_CLASS_ID: number;
+	SUBJECT_ID: string;
+	SUBJECT_NAME: string;
+	GROUP_NUMBER: number;
+	LECTURER_NAME: string;
+	MIN_STUDENTS: number;
+	ENROLLED_STUDENTS: number;
 }
 
-interface Registration {
-	id: string;
-	studentId: string;
-	classId: string;
-	academicYear: string;
-	semester: string;
-	courseName: string;
-	courseCode: string;
-	instructor: string;
-	group: string;
-	registrationDate: string;
-	status: 'ACTIVE' | 'CANCELLED';
+interface EnrolledClass {
+	CREDIT_CLASS_ID: number;
+	ACADEMIC_YEAR: string;
+	SEMESTER: number;
+	SUBJECT_NAME: string;
+	LECTURER_NAME: string;
+	GROUP: number;
 }
-
-// Mock data
-const mockStudents: Student[] = [
-	{
-		id: 'SV001',
-		lastName: 'Nguyen',
-		firstName: 'Van A',
-		classCode: 'CNTT01',
-		department: 'CNTT',
-	},
-	{
-		id: 'SV002',
-		lastName: 'Tran',
-		firstName: 'Thi B',
-		classCode: 'CNTT02',
-		department: 'CNTT',
-	},
-	{
-		id: 'SV003',
-		lastName: 'Le',
-		firstName: 'Van C',
-		classCode: 'VT01',
-		department: 'VT',
-	},
-	{
-		id: 'SV004',
-		lastName: 'Pham',
-		firstName: 'Thi D',
-		classCode: 'CNTT03',
-		department: 'CNTT',
-	},
-	{
-		id: 'SV005',
-		lastName: 'Hoang',
-		firstName: 'Van E',
-		classCode: 'VT02',
-		department: 'VT',
-	},
-];
-
-const mockCreditClasses: CreditClass[] = [
-	{
-		id: 'CC001',
-		courseName: 'Cấu trúc dữ liệu & Giải thuật',
-		courseCode: 'CTDL',
-		group: 'A1',
-		instructorName: 'Dr. Nguyen Van A',
-		minStudents: 20,
-		registeredStudents: 18,
-		maxStudents: 40,
-		academicYear: '2024-2025',
-		semester: '1',
-		schedule: 'Mon 7:00-9:00, Wed 7:00-9:00',
-		isCancelled: false,
-		isOpen: true,
-	},
-	{
-		id: 'CC002',
-		courseName: 'Cơ sở dữ liệu',
-		courseCode: 'CSDL',
-		group: 'B1',
-		instructorName: 'Dr. Tran Thi B',
-		minStudents: 25,
-		registeredStudents: 30,
-		maxStudents: 35,
-		academicYear: '2024-2025',
-		semester: '1',
-		schedule: 'Tue 7:00-9:00, Thu 7:00-9:00',
-		isCancelled: false,
-		isOpen: true,
-	},
-	{
-		id: 'CC003',
-		courseName: 'Lập trình hướng đối tượng',
-		courseCode: 'OOP',
-		group: 'C1',
-		instructorName: 'Dr. Le Van C',
-		minStudents: 30,
-		registeredStudents: 35,
-		maxStudents: 35,
-		academicYear: '2024-2025',
-		semester: '1',
-		schedule: 'Mon 9:00-11:00, Fri 7:00-9:00',
-		isCancelled: false,
-		isOpen: false,
-	},
-	{
-		id: 'CC004',
-		courseName: 'Trí tuệ nhân tạo',
-		courseCode: 'AI',
-		group: 'A1',
-		instructorName: 'Dr. Pham Thi D',
-		minStudents: 20,
-		registeredStudents: 15,
-		maxStudents: 30,
-		academicYear: '2024-2025',
-		semester: '2',
-		schedule: 'Wed 9:00-11:00, Fri 9:00-11:00',
-		isCancelled: false,
-		isOpen: true,
-	},
-	{
-		id: 'CC005',
-		courseName: 'Mạng máy tính',
-		courseCode: 'MMT',
-		group: 'B1',
-		instructorName: 'Dr. Vo Thi E',
-		minStudents: 15,
-		registeredStudents: 8,
-		maxStudents: 25,
-		academicYear: '2024-2025',
-		semester: '2',
-		schedule: 'Tue 9:00-11:00, Thu 9:00-11:00',
-		isCancelled: true,
-		isOpen: false,
-	},
-];
-
-const initialRegistrations: Registration[] = [
-	{
-		id: 'REG001',
-		studentId: 'SV001',
-		classId: 'CC001',
-		academicYear: '2024-2025',
-		semester: '1',
-		courseName: 'Cấu trúc dữ liệu & Giải thuật',
-		courseCode: 'CTDL',
-		instructor: 'Dr. Nguyen Van A',
-		group: 'A1',
-		registrationDate: '2024-01-15',
-		status: 'ACTIVE',
-	},
-	{
-		id: 'REG002',
-		studentId: 'SV001',
-		classId: 'CC002',
-		academicYear: '2024-2025',
-		semester: '1',
-		courseName: 'Cơ sở dữ liệu',
-		courseCode: 'CSDL',
-		instructor: 'Dr. Tran Thi B',
-		group: 'B1',
-		registrationDate: '2024-01-16',
-		status: 'ACTIVE',
-	},
-];
 
 function CourseRegistrationPageContent() {
-	// Toast is imported directly from @/lib/toast
-
 	// State management
-	const [studentId, setStudentId] = useState('');
-	const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+	const [studentInfo, setStudentInfo] = useState<StudentInfo | null>(null);
+	const [cachedFacultyId, setCachedFacultyId] = useState<string | null>(null);
 	const [academicYear, setAcademicYear] = useState('');
 	const [semester, setSemester] = useState('');
 	const [availableClasses, setAvailableClasses] = useState<CreditClass[]>([]);
-	const [selectedClassId, setSelectedClassId] = useState<string>('');
+	const [selectedClassId, setSelectedClassId] = useState<number | null>(null);
 	const [selectedClass, setSelectedClass] = useState<CreditClass | null>(null);
-	const [registrations, setRegistrations] =
-		useState<Registration[]>(initialRegistrations);
+	const [enrolledClasses, setEnrolledClasses] = useState<EnrolledClass[]>([]);
 	const [isLoading, setIsLoading] = useState(false);
 	const [showConfirmDialog, setShowConfirmDialog] = useState(false);
-	const [confirmAction, setConfirmAction] = useState<{
-		type: 'register' | 'cancel';
-		data?: any;
-	}>({ type: 'register' });
+	const [selectedClassForRegistration, setSelectedClassForRegistration] =
+		useState<CreditClass | null>(null);
+	const [showCancelDialog, setShowCancelDialog] = useState(false);
+	const [selectedClassForCancellation, setSelectedClassForCancellation] =
+		useState<EnrolledClass | null>(null);
+	const [refreshTrigger, setRefreshTrigger] = useState(0);
+	const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-	// Academic years and semesters
-	const academicYears = ['2024-2025', '2025-2026', '2026-2027'];
-	const semesters = ['1', '2', '3'];
+	const [academicYears, setAcademicYears] = useState<string[]>([]);
+	const [semesters, setSemesters] = useState<string[]>([]);
 
-	// Student lookup
-	const handleStudentSearch = () => {
-		setIsLoading(true);
-
-		setTimeout(() => {
-			const student = mockStudents.find((s) => s.id === studentId);
-			if (student) {
-				setSelectedStudent(student);
-				toast.success({
-					title: `Found student: ${student.firstName} ${student.lastName}`,
-				});
-			} else {
-				setSelectedStudent(null);
+	// Get current user and automatically load student information
+	useEffect(() => {
+		const loadStudentInfo = async () => {
+			const currentUser = getCurrentUser();
+			if (!currentUser || !currentUser.isStudent) {
 				toast.error({
-					title: 'Please check the student ID and try again.',
+					title: 'Access denied. Only students can access course registration.',
 				});
+				return;
 			}
-			setIsLoading(false);
-		}, 1000);
-	};
 
-	// Search available classes
-	const handleClassSearch = () => {
-		if (!academicYear || !semester) {
+			setIsLoading(true);
+			try {
+				const response = await fetch(
+					`/api/students?department=${encodeURIComponent(
+						currentUser.department?.branch_name || '',
+					)}&studentId=${encodeURIComponent(currentUser.username)}`,
+				);
+
+				const data = await response.json();
+				if (data.success && data.student) {
+					const student = data.student;
+					setStudentInfo(student);
+
+					// Cache faculty ID by getting it from class info
+					if (student.CLASS_ID) {
+						try {
+							const classResponse = await fetch(
+								`/api/classes?department=${encodeURIComponent(
+									currentUser.department?.branch_name || '',
+								)}&classId=${student.CLASS_ID}`,
+							);
+
+							const classData = await classResponse.json();
+							if (
+								classData.success &&
+								classData.classes &&
+								classData.classes.length > 0
+							) {
+								const facultyId = classData.classes[0].FACULTY_ID || 'IT';
+								setCachedFacultyId(facultyId);
+								console.log('🏫 Cached Faculty ID:', facultyId);
+							}
+						} catch (error) {
+							console.error('Error caching faculty ID:', error);
+							setCachedFacultyId('IT'); // Fallback
+						}
+					}
+
+					toast.success({
+						title: `Welcome ${student.FULL_NAME}`,
+					});
+				} else {
+					toast.error({
+						title: 'Failed to load student information',
+					});
+				}
+			} catch (error) {
+				console.error('Error loading student info:', error);
+				toast.error({
+					title: 'Error loading student information',
+				});
+			} finally {
+				setIsLoading(false);
+			}
+		};
+
+		loadStudentInfo();
+	}, []);
+
+	// Load academic years
+	useEffect(() => {
+		const loadAcademicYears = async () => {
+			const currentUser = getCurrentUser();
+			if (!currentUser) return;
+
+			try {
+				const response = await fetch(
+					`/api/academic-years?department=${encodeURIComponent(
+						currentUser.department?.branch_name || '',
+					)}`,
+				);
+
+				const data = await response.json();
+				if (data.success) {
+					setAcademicYears(data.academicYears || []);
+				} else {
+					console.error('Failed to load academic years:', data.error);
+				}
+			} catch (error) {
+				console.error('Error loading academic years:', error);
+			}
+		};
+
+		loadAcademicYears();
+	}, []);
+
+	// Load semesters when academic year changes
+	useEffect(() => {
+		const loadSemesters = async () => {
+			if (!academicYear) {
+				setSemesters([]);
+				setSemester(''); // Reset semester when academic year changes
+				return;
+			}
+
+			const currentUser = getCurrentUser();
+			if (!currentUser) return;
+
+			// Reset semester when academic year changes
+			setSemester('');
+
+			try {
+				const response = await fetch(
+					`/api/semesters?department=${encodeURIComponent(
+						currentUser.department?.branch_name || '',
+					)}&academicYear=${encodeURIComponent(academicYear)}`,
+				);
+
+				const data = await response.json();
+				if (data.success) {
+					setSemesters(data.semesters || []);
+				} else {
+					console.error('Failed to load semesters:', data.error);
+				}
+			} catch (error) {
+				console.error('Error loading semesters:', error);
+			}
+		};
+
+		loadSemesters();
+	}, [academicYear]);
+
+	// Function to refresh enrolled classes
+	const refreshEnrolledClasses = useCallback(async () => {
+		console.log('🔄 Refreshing enrolled classes...', {
+			academicYear,
+			semester,
+			studentId: studentInfo?.STUDENT_ID,
+		});
+
+		if (!academicYear || !semester || !studentInfo) {
+			setEnrolledClasses([]);
+			return;
+		}
+
+		const currentUser = getCurrentUser();
+		if (!currentUser) return;
+
+		try {
+			// Use cached faculty ID if available, otherwise fallback to lookup
+			let facultyId = cachedFacultyId || 'IT';
+
+			if (!cachedFacultyId) {
+				console.log('⚠️ Faculty ID not cached, performing lookup...');
+				const classResponse = await fetch(
+					`/api/classes?department=${encodeURIComponent(
+						currentUser.department?.branch_name || '',
+					)}&classId=${studentInfo.CLASS_ID}`,
+				);
+
+				const classData = await classResponse.json();
+				if (
+					classData.success &&
+					classData.classes &&
+					classData.classes.length > 0
+				) {
+					facultyId = classData.classes[0].FACULTY_ID || 'IT';
+					setCachedFacultyId(facultyId); // Cache it for next time
+				}
+			} else {
+				console.log('⚡ Using cached Faculty ID:', facultyId);
+			}
+
+			// Call SP_STUDENT_ENROLLED_CREDIT_CLASSES
+			const response = await fetch(
+				`/api/student-enrolled-classes?department=${encodeURIComponent(
+					currentUser.department?.branch_name || '',
+				)}&studentId=${encodeURIComponent(
+					studentInfo.STUDENT_ID,
+				)}&academicYear=${encodeURIComponent(
+					academicYear,
+				)}&semester=${encodeURIComponent(
+					semester,
+				)}&facultyId=${encodeURIComponent(facultyId)}`,
+			);
+
+			const data = await response.json();
+			console.log('📊 Enrolled classes API response:', data);
+
+			if (data.success) {
+				console.log(
+					'✅ Setting enrolled classes:',
+					data.enrolledClasses?.length || 0,
+					'classes',
+				);
+				setEnrolledClasses(data.enrolledClasses || []);
+			} else {
+				console.error('❌ Failed to load enrolled classes:', data.error);
+				setEnrolledClasses([]);
+			}
+		} catch (error) {
+			console.error('Error loading enrolled classes:', error);
+			setEnrolledClasses([]);
+		}
+	}, [academicYear, semester, studentInfo, cachedFacultyId]);
+
+	// Force refresh when refreshTrigger changes
+	useEffect(() => {
+		if (refreshTrigger > 0) {
+			refreshEnrolledClasses();
+		}
+	}, [refreshTrigger, refreshEnrolledClasses]);
+
+	// Debounced search function
+	const debouncedSearch = useCallback((searchFn: () => Promise<void>) => {
+		// Clear previous timeout
+		if (searchTimeoutRef.current) {
+			clearTimeout(searchTimeoutRef.current);
+		}
+
+		// Set new timeout
+		searchTimeoutRef.current = setTimeout(() => {
+			searchFn();
+		}, 300); // 300ms debounce
+	}, []);
+
+	// Search available classes (actual search logic)
+	const performClassSearch = async () => {
+		if (!academicYear || !semester || !studentInfo) {
 			toast.error({
 				title: 'Please select both academic year and semester.',
 			});
 			return;
 		}
 
+		const currentUser = getCurrentUser();
+		if (!currentUser) {
+			toast.error({
+				title: 'User session not found',
+			});
+			return;
+		}
+
 		setIsLoading(true);
 
-		setTimeout(() => {
-			const filtered = mockCreditClasses.filter(
-				(cls) =>
-					cls.academicYear === academicYear &&
-					cls.semester === semester &&
-					!cls.isCancelled &&
-					cls.isOpen,
+		try {
+			// First, get the faculty ID from the student's class information
+			// We need to make a separate API call to get the faculty ID from the class
+			const classResponse = await fetch(
+				`/api/classes?department=${encodeURIComponent(
+					currentUser.department?.branch_name || '',
+				)}&classId=${studentInfo.CLASS_ID}`,
 			);
-			setAvailableClasses(filtered);
 
-			toast.success({
-				title: `Found ${filtered.length} available classes for ${academicYear} - Semester ${semester}`,
+			const classData = await classResponse.json();
+			let facultyId = 'IT'; // Default fallback
+
+			if (
+				classData.success &&
+				classData.classes &&
+				classData.classes.length > 0
+			) {
+				facultyId = classData.classes[0].FACULTY_ID || 'IT';
+			}
+
+			// Call SP_CREDIT_CLASS_LIST through the API
+			const response = await fetch(
+				`/api/credit-classes?department=${encodeURIComponent(
+					currentUser.department?.branch_name || '',
+				)}&facultyId=${facultyId}&academicYear=${academicYear}&semester=${semester}`,
+			);
+
+			const data = await response.json();
+			if (data.success) {
+				// Filter out cancelled classes (already done in the stored procedure)
+				setAvailableClasses(data.creditClasses);
+
+				// Load enrolled classes in parallel (don't await)
+				refreshEnrolledClasses().catch((error) =>
+					console.error('Error loading enrolled classes:', error),
+				);
+
+				toast.success({
+					title: `Search completed successfully`,
+					description: `Found ${data.creditClasses.length} available classes for ${academicYear} - Semester ${semester}`,
+				});
+			} else {
+				toast.error({
+					title: data.error || 'Failed to load credit classes',
+				});
+			}
+		} catch (error) {
+			console.error('Error loading credit classes:', error);
+			toast.error({
+				title: 'Error loading credit classes',
 			});
+		} finally {
 			setIsLoading(false);
-		}, 800);
-	};
-
-	// Handle class selection
-	const handleClassSelection = (classData: CreditClass) => {
-		setSelectedClassId(classData.id);
-		setSelectedClass(classData);
-
-		toast({
-			title: 'Class Selected',
-			description: `Selected: ${classData.courseName} - Group ${classData.group}`,
-		});
-	};
-
-	// Handle registration
-	const handleRegister = () => {
-		if (!selectedStudent || !selectedClass) {
-			toast({
-				title: 'Missing Information',
-				description: 'Please select a student and a class first.',
-				variant: 'destructive',
-			});
-			return;
 		}
+	};
 
-		// Check if already registered
-		const existingRegistration = registrations.find(
-			(reg) =>
-				reg.studentId === selectedStudent.id &&
-				reg.classId === selectedClass.id &&
-				reg.status === 'ACTIVE',
+	// Public search function with debouncing
+	const handleClassSearch = () => {
+		debouncedSearch(performClassSearch);
+	};
+
+	// Check if user is already enrolled in a class
+	const isAlreadyEnrolled = (classData: CreditClass) => {
+		return enrolledClasses.some(
+			(enrolledClass) =>
+				enrolledClass.CREDIT_CLASS_ID === classData.CREDIT_CLASS_ID,
 		);
+	};
 
-		if (existingRegistration) {
-			toast({
-				title: 'Already Registered',
-				description: 'Student is already registered for this class.',
-				variant: 'destructive',
+	// Handle class selection - now triggers registration dialog
+	const handleClassSelection = (classData: CreditClass) => {
+		// Check if already enrolled
+		if (isAlreadyEnrolled(classData)) {
+			toast.error({
+				title: 'Already Enrolled',
+				description: `You are already enrolled in ${classData.SUBJECT_NAME} - Group ${classData.GROUP_NUMBER}`,
 			});
 			return;
 		}
 
-		// Check if class is full
-		if (selectedClass.registeredStudents >= selectedClass.maxStudents) {
-			toast({
-				title: 'Class Full',
-				description: 'This class has reached maximum capacity.',
-				variant: 'destructive',
-			});
-			return;
+		if (selectedClassId === classData.CREDIT_CLASS_ID) {
+			// Deselect if already selected
+			setSelectedClassId(null);
+			setSelectedClass(null);
+		} else {
+			// Select new class and immediately show registration dialog
+			setSelectedClassId(classData.CREDIT_CLASS_ID);
+			setSelectedClass(classData);
+			setSelectedClassForRegistration(classData);
+			setShowConfirmDialog(true);
 		}
-
-		setConfirmAction({ type: 'register' });
-		setShowConfirmDialog(true);
 	};
 
 	// Confirm registration
-	const confirmRegister = () => {
-		if (!selectedStudent || !selectedClass) return;
+	const confirmRegister = async () => {
+		if (!studentInfo || !selectedClassForRegistration) return;
 
-		const newRegistration: Registration = {
-			id: `REG${Date.now()}`,
-			studentId: selectedStudent.id,
-			classId: selectedClass.id,
-			academicYear: selectedClass.academicYear,
-			semester: selectedClass.semester,
-			courseName: selectedClass.courseName,
-			courseCode: selectedClass.courseCode,
-			instructor: selectedClass.instructorName,
-			group: selectedClass.group,
-			registrationDate: new Date().toISOString().split('T')[0],
-			status: 'ACTIVE',
-		};
+		const currentUser = getCurrentUser();
+		if (!currentUser) {
+			toast.error({
+				title: 'User session not found',
+			});
+			return;
+		}
 
-		setRegistrations((prev) => [...prev, newRegistration]);
-
-		// Update class registered students count
-		setAvailableClasses((prev) =>
-			prev.map((cls) =>
-				cls.id === selectedClass.id
-					? { ...cls, registeredStudents: cls.registeredStudents + 1 }
-					: cls,
-			),
-		);
-
-		setSelectedClassId('');
-		setSelectedClass(null);
-		setShowConfirmDialog(false);
-
-		toast({
-			title: 'Registration Successful',
-			description: `Successfully registered for ${selectedClass.courseName}`,
-		});
-	};
-
-	// Handle cancel registration
-	const handleCancelRegistration = (registration: Registration) => {
-		setConfirmAction({ type: 'cancel', data: registration });
-		setShowConfirmDialog(true);
-	};
-
-	// Confirm cancel registration
-	const confirmCancelRegistration = () => {
-		const registration = confirmAction.data;
-		if (!registration) return;
-
-		setRegistrations((prev) =>
-			prev.map((reg) =>
-				reg.id === registration.id ? { ...reg, status: 'CANCELLED' } : reg,
-			),
-		);
-
-		// Update class registered students count
-		setAvailableClasses((prev) =>
-			prev.map((cls) =>
-				cls.id === registration.classId
-					? {
-							...cls,
-							registeredStudents: Math.max(0, cls.registeredStudents - 1),
-					  }
-					: cls,
-			),
-		);
-
-		setShowConfirmDialog(false);
-
-		toast({
-			title: 'Registration Cancelled',
-			description: `Cancelled registration for ${registration.courseName}`,
-		});
-	};
-
-	// Handle refresh
-	const handleRefresh = () => {
 		setIsLoading(true);
 
-		setTimeout(() => {
-			setStudentId('');
-			setSelectedStudent(null);
-			setAcademicYear('');
-			setSemester('');
-			setAvailableClasses([]);
-			setSelectedClassId('');
-			setSelectedClass(null);
-			setIsLoading(false);
-
-			toast({
-				title: 'Page Refreshed',
-				description: 'All data has been refreshed',
+		try {
+			const response = await fetch('/api/enrollment', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({
+					departmentName: currentUser.department?.branch_name || '',
+					studentId: studentInfo.STUDENT_ID,
+					creditClassId: selectedClassForRegistration.CREDIT_CLASS_ID,
+				}),
 			});
-		}, 500);
+
+			const data = await response.json();
+			if (data.success) {
+				console.log('🎉 Registration successful, triggering refresh...');
+
+				toast.success({
+					title: 'Registration Successful',
+					description: `Successfully registered for ${selectedClassForRegistration.SUBJECT_NAME}`,
+				});
+
+				// Force refresh enrolled classes by updating trigger
+				setTimeout(() => {
+					console.log('⏰ Triggering enrolled classes refresh...');
+					setRefreshTrigger((prev) => prev + 1);
+				}, 500);
+			} else {
+				toast.error({
+					title: 'Registration Failed',
+					description: data.error || 'Failed to register for the class',
+				});
+			}
+		} catch (error) {
+			console.error('Error registering for class:', error);
+			toast.error({
+				title: 'Registration Error',
+				description: 'An error occurred while registering for the class',
+			});
+		} finally {
+			setIsLoading(false);
+			setShowConfirmDialog(false);
+			setSelectedClassForRegistration(null);
+		}
 	};
 
-	// Handle exit
-	const handleExit = () => {
-		window.location.href = '/dashboard';
+	// Handle cancel enrollment
+	const handleCancelEnrollment = (enrolledClass: EnrolledClass) => {
+		setSelectedClassForCancellation(enrolledClass);
+		setShowCancelDialog(true);
 	};
 
-	// Get student registrations
-	const getStudentRegistrations = () => {
-		if (!selectedStudent) return [];
-		return registrations.filter(
-			(reg) => reg.studentId === selectedStudent.id && reg.status === 'ACTIVE',
-		);
+	// Confirm cancel enrollment
+	const confirmCancelEnrollment = async () => {
+		if (!studentInfo || !selectedClassForCancellation) return;
+
+		const currentUser = getCurrentUser();
+		if (!currentUser) {
+			toast.error({
+				title: 'User session not found',
+			});
+			return;
+		}
+
+		setIsLoading(true);
+
+		try {
+			const response = await fetch('/api/enrollment', {
+				method: 'DELETE',
+				headers: {
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({
+					departmentName: currentUser.department?.branch_name || '',
+					studentId: studentInfo.STUDENT_ID,
+					creditClassId: selectedClassForCancellation.CREDIT_CLASS_ID,
+				}),
+			});
+
+			const data = await response.json();
+			if (data.success) {
+				console.log('🗑️ Cancellation successful, triggering refresh...');
+
+				toast.success({
+					title: 'Cancellation Successful',
+					description: `Successfully cancelled enrollment for ${selectedClassForCancellation.SUBJECT_NAME}`,
+				});
+
+				// Force refresh enrolled classes by updating trigger
+				setTimeout(() => {
+					console.log(
+						'⏰ Triggering enrolled classes refresh after cancellation...',
+					);
+					setRefreshTrigger((prev) => prev + 1);
+				}, 500);
+			} else {
+				toast.error({
+					title: 'Cancellation Failed',
+					description: data.error || 'Failed to cancel enrollment',
+				});
+			}
+		} catch (error) {
+			console.error('Error cancelling enrollment:', error);
+			toast.error({
+				title: 'Cancellation Error',
+				description: 'An error occurred while cancelling enrollment',
+			});
+		} finally {
+			setIsLoading(false);
+			setShowCancelDialog(false);
+			setSelectedClassForCancellation(null);
+		}
 	};
 
 	return (
@@ -509,69 +603,32 @@ function CourseRegistrationPageContent() {
 								</p>
 							</div>
 						</div>
-
-						<div className='flex gap-3'>
-							<Button
-								variant='outline'
-								onClick={handleRefresh}
-								disabled={isLoading}
-								className='shadow-sm'
-							>
-								<RefreshCw className='mr-2 h-4 w-4' />
-								Refresh
-							</Button>
-							<Button
-								variant='destructive'
-								onClick={handleExit}
-								className='shadow-sm'
-							>
-								<LogOut className='mr-2 h-4 w-4' />
-								Exit
-							</Button>
-						</div>
 					</div>
 				</div>
 			</div>
 
 			<div className='container mx-auto px-6 py-6'>
-				{/* Top Section - Student Search and Academic Selection */}
+				{/* Top Section - Student Information and Academic Selection */}
 				<div className='grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6'>
-					{/* Student Lookup */}
+					{/* Student Information */}
 					<Card className='shadow-lg border-0 bg-white/80 backdrop-blur-sm'>
 						<CardHeader className='pb-3'>
 							<CardTitle className='flex items-center gap-2 text-lg'>
 								<UserSearch className='h-5 w-5 text-blue-600' />
-								Student Lookup
+								Student Information
 							</CardTitle>
 							<CardDescription>
-								Enter your student ID to begin registration
+								Your student information for course registration
 							</CardDescription>
 						</CardHeader>
 						<CardContent className='space-y-4'>
-							<div className='flex gap-2'>
-								<Input
-									placeholder='Enter Student ID (e.g., SV001)'
-									value={studentId}
-									onChange={(e) => setStudentId(e.target.value)}
-									className='flex-1 border-gray-300 focus:border-blue-500'
-								/>
-								<Button
-									onClick={handleStudentSearch}
-									disabled={isLoading || !studentId}
-									className='bg-blue-600 hover:bg-blue-700 shadow-sm'
-								>
-									<Search className='mr-2 h-4 w-4' />
-									Search
-								</Button>
-							</div>
-
 							{/* Student Info Display */}
-							{selectedStudent && (
-								<div className='mt-4 p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800'>
+							{studentInfo ? (
+								<div className='p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800'>
 									<div className='flex items-center gap-2 mb-2'>
 										<CheckCircle className='h-4 w-4 text-green-600' />
 										<h3 className='font-semibold text-green-800 dark:text-green-200'>
-											Student Found
+											Student Information
 										</h3>
 									</div>
 									<div className='grid grid-cols-2 gap-2 text-sm'>
@@ -579,32 +636,56 @@ function CourseRegistrationPageContent() {
 											<span className='text-gray-600 dark:text-gray-400'>
 												Student ID:
 											</span>
-											<div className='font-medium'>{selectedStudent.id}</div>
+											<div className='font-medium'>
+												{studentInfo.STUDENT_ID}
+											</div>
 										</div>
 										<div>
 											<span className='text-gray-600 dark:text-gray-400'>
 												Full Name:
 											</span>
-											<div className='font-medium'>
-												{selectedStudent.firstName} {selectedStudent.lastName}
-											</div>
+											<div className='font-medium'>{studentInfo.FULL_NAME}</div>
 										</div>
 										<div>
 											<span className='text-gray-600 dark:text-gray-400'>
-												Class Code:
+												Class ID:
 											</span>
 											<Badge variant='secondary' className='mt-1'>
-												{selectedStudent.classCode}
+												{studentInfo.CLASS_ID}
 											</Badge>
 										</div>
 										<div>
 											<span className='text-gray-600 dark:text-gray-400'>
-												Department:
+												Class Name:
 											</span>
 											<div className='font-medium'>
-												{selectedStudent.department}
+												{studentInfo.CLASS_NAME}
 											</div>
 										</div>
+										<div className='col-span-2'>
+											<span className='text-gray-600 dark:text-gray-400'>
+												Faculty:
+											</span>
+											<div className='font-medium'>
+												{studentInfo.FACULTY_NAME}
+											</div>
+										</div>
+									</div>
+								</div>
+							) : (
+								<div className='p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700'>
+									<div className='flex items-center gap-2 text-gray-500'>
+										{isLoading ? (
+											<>
+												<div className='h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600'></div>
+												<span>Loading student information...</span>
+											</>
+										) : (
+											<>
+												<AlertCircle className='h-4 w-4' />
+												<span>Unable to load student information</span>
+											</>
+										)}
 									</div>
 								</div>
 							)}
@@ -614,7 +695,7 @@ function CourseRegistrationPageContent() {
 					{/* Academic Year & Semester Selection */}
 					<Card
 						className={`shadow-lg border-0 bg-white/80 backdrop-blur-sm transition-all duration-200 ${
-							selectedStudent ? 'opacity-100' : 'opacity-50'
+							studentInfo ? 'opacity-100' : 'opacity-50'
 						}`}
 					>
 						<CardHeader className='pb-3'>
@@ -635,17 +716,23 @@ function CourseRegistrationPageContent() {
 									<Select
 										value={academicYear}
 										onValueChange={setAcademicYear}
-										disabled={!selectedStudent}
+										disabled={!studentInfo}
 									>
 										<SelectTrigger className='border-gray-300 focus:border-indigo-500'>
 											<SelectValue placeholder='Select academic year' />
 										</SelectTrigger>
 										<SelectContent>
-											{academicYears.map((year) => (
-												<SelectItem key={year} value={year}>
-													{year}
+											{academicYears.length > 0 ? (
+												academicYears.map((year) => (
+													<SelectItem key={year} value={year}>
+														{year}
+													</SelectItem>
+												))
+											) : (
+												<SelectItem value='loading' disabled>
+													Loading academic years...
 												</SelectItem>
-											))}
+											)}
 										</SelectContent>
 									</Select>
 								</div>
@@ -657,17 +744,33 @@ function CourseRegistrationPageContent() {
 									<Select
 										value={semester}
 										onValueChange={setSemester}
-										disabled={!selectedStudent}
+										disabled={!studentInfo || !academicYear}
 									>
 										<SelectTrigger className='border-gray-300 focus:border-indigo-500'>
-											<SelectValue placeholder='Select semester' />
+											<SelectValue
+												placeholder={
+													!academicYear
+														? 'Select academic year first'
+														: 'Select semester'
+												}
+											/>
 										</SelectTrigger>
 										<SelectContent>
-											{semesters.map((sem) => (
-												<SelectItem key={sem} value={sem}>
-													Semester {sem}
+											{!academicYear ? (
+												<SelectItem value='no-year' disabled>
+													Select academic year first
 												</SelectItem>
-											))}
+											) : semesters.length > 0 ? (
+												semesters.map((sem) => (
+													<SelectItem key={sem} value={sem}>
+														Semester {sem}
+													</SelectItem>
+												))
+											) : (
+												<SelectItem value='loading' disabled>
+													Loading semesters...
+												</SelectItem>
+											)}
 										</SelectContent>
 									</Select>
 								</div>
@@ -675,7 +778,7 @@ function CourseRegistrationPageContent() {
 								<Button
 									onClick={handleClassSearch}
 									disabled={
-										isLoading || !academicYear || !semester || !selectedStudent
+										isLoading || !academicYear || !semester || !studentInfo
 									}
 									className='w-full bg-indigo-600 hover:bg-indigo-700 shadow-sm'
 								>
@@ -716,289 +819,237 @@ function CourseRegistrationPageContent() {
 								</CardHeader>
 								<CardContent>
 									<div className='space-y-3'>
-										{availableClasses.map((classData) => (
-											<div
-												key={classData.id}
-												className={`p-4 rounded-lg border-2 transition-all duration-200 cursor-pointer hover:shadow-md ${
-													selectedClassId === classData.id
-														? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-														: 'border-gray-200 hover:border-gray-300 bg-white dark:bg-gray-800'
-												}`}
-												onClick={() => handleClassSelection(classData)}
-											>
-												<div className='flex items-start justify-between'>
-													<div className='flex items-start gap-3 flex-1'>
-														<Checkbox
-															checked={selectedClassId === classData.id}
-															onCheckedChange={() =>
-																handleClassSelection(classData)
-															}
-															className='mt-1'
-														/>
+										{isLoading ? (
+											// Loading skeletons
+											Array.from({ length: 3 }).map((_, index) => (
+												<div
+													key={index}
+													className='p-4 rounded-lg border-2 border-gray-200'
+												>
+													<div className='flex items-start gap-3'>
+														<Skeleton className='h-4 w-4 mt-1' />
 														<div className='flex-1 space-y-2'>
 															<div className='flex items-center gap-2'>
-																<h3 className='font-semibold text-gray-900 dark:text-white'>
-																	{classData.courseName}
-																</h3>
-																<Badge variant='outline' className='text-xs'>
-																	{classData.courseCode}
-																</Badge>
+																<Skeleton className='h-5 w-48' />
+																<Skeleton className='h-4 w-16' />
 															</div>
-															<div className='grid grid-cols-2 md:grid-cols-4 gap-2 text-sm text-gray-600 dark:text-gray-400'>
-																<div className='flex items-center gap-1'>
-																	<span className='font-medium'>ID:</span>{' '}
-																	{classData.id}
-																</div>
-																<div className='flex items-center gap-1'>
-																	<Users className='h-3 w-3' />
-																	<span>Group {classData.group}</span>
-																</div>
-																<div className='flex items-center gap-1'>
-																	<span className='font-medium'>
-																		Instructor:
-																	</span>{' '}
-																	{classData.instructorName}
-																</div>
-																<div className='flex items-center gap-1'>
-																	<Clock className='h-3 w-3' />
-																	<span className='text-xs'>
-																		{classData.schedule}
-																	</span>
-																</div>
+															<div className='grid grid-cols-3 gap-2'>
+																<Skeleton className='h-4 w-20' />
+																<Skeleton className='h-4 w-24' />
+																<Skeleton className='h-4 w-32' />
 															</div>
-															<div className='flex items-center gap-4 text-sm'>
-																<div className='flex items-center gap-1'>
-																	<span className='text-gray-500'>
-																		Students:
-																	</span>
-																	<span
-																		className={
-																			classData.registeredStudents >=
-																			classData.maxStudents
-																				? 'text-red-600 font-semibold'
-																				: 'text-green-600 font-semibold'
-																		}
-																	>
-																		{classData.registeredStudents}/
-																		{classData.maxStudents}
-																	</span>
-																</div>
-																<div className='flex items-center gap-1'>
-																	<span className='text-gray-500'>
-																		Min required:
-																	</span>
-																	<span className='font-medium'>
-																		{classData.minStudents}
-																	</span>
-																</div>
-																{classData.registeredStudents >=
-																classData.maxStudents ? (
-																	<Badge
-																		variant='destructive'
-																		className='text-xs'
-																	>
-																		Full
-																	</Badge>
-																) : (
-																	<Badge
-																		variant='default'
-																		className='text-xs bg-green-600'
-																	>
-																		Open
-																	</Badge>
-																)}
+															<div className='flex items-center gap-4'>
+																<Skeleton className='h-4 w-16' />
+																<Skeleton className='h-4 w-20' />
+																<Skeleton className='h-4 w-12' />
 															</div>
 														</div>
 													</div>
 												</div>
+											))
+										) : availableClasses.length > 0 ? (
+											availableClasses.map((classData) => (
+												<div
+													key={classData.CREDIT_CLASS_ID}
+													className={`p-4 rounded-lg border-2 transition-all duration-200 ${
+														isAlreadyEnrolled(classData)
+															? 'border-green-500 bg-green-50 dark:bg-green-900/20 cursor-not-allowed opacity-75'
+															: selectedClassId === classData.CREDIT_CLASS_ID
+															? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 cursor-pointer hover:shadow-md'
+															: 'border-gray-200 hover:border-gray-300 bg-white dark:bg-gray-800 cursor-pointer hover:shadow-md'
+													}`}
+													onClick={() => handleClassSelection(classData)}
+												>
+													<div className='flex items-start justify-between'>
+														<div className='flex items-start gap-3 flex-1'>
+															<Checkbox
+																checked={
+																	selectedClassId ===
+																		classData.CREDIT_CLASS_ID ||
+																	isAlreadyEnrolled(classData)
+																}
+																disabled={isAlreadyEnrolled(classData)}
+																onCheckedChange={() =>
+																	handleClassSelection(classData)
+																}
+																className='mt-1'
+															/>
+															<div className='flex-1 space-y-2'>
+																<div className='flex items-center gap-2'>
+																	<h3 className='font-semibold text-gray-900 dark:text-white'>
+																		{classData.SUBJECT_NAME}
+																	</h3>
+																	<Badge variant='outline' className='text-xs'>
+																		{classData.SUBJECT_ID}
+																	</Badge>
+																</div>
+																<div className='grid grid-cols-2 md:grid-cols-3 gap-2 text-sm text-gray-600 dark:text-gray-400'>
+																	<div className='flex items-center gap-1'>
+																		<span className='font-medium'>ID:</span>{' '}
+																		{classData.CREDIT_CLASS_ID}
+																	</div>
+																	<div className='flex items-center gap-1'>
+																		<Users className='h-3 w-3' />
+																		<span>Group {classData.GROUP_NUMBER}</span>
+																	</div>
+																	<div className='flex items-center gap-1'>
+																		<span className='font-medium'>
+																			Instructor:
+																		</span>{' '}
+																		{classData.LECTURER_NAME}
+																	</div>
+																</div>
+																<div className='flex items-center justify-between'>
+																	<div className='flex items-center gap-4 text-sm'>
+																		<div className='flex items-center gap-1'>
+																			<span className='text-gray-500'>
+																				Enrolled:
+																			</span>
+																			<span className='text-blue-600 font-semibold'>
+																				{classData.ENROLLED_STUDENTS || 0}
+																			</span>
+																		</div>
+																		<div className='flex items-center gap-1'>
+																			<span className='text-gray-500'>
+																				Min required:
+																			</span>
+																			<span className='font-medium'>
+																				{classData.MIN_STUDENTS}
+																			</span>
+																		</div>
+																		{isAlreadyEnrolled(classData) ? (
+																			<Badge
+																				variant='default'
+																				className='text-xs bg-green-600'
+																			>
+																				Already Enrolled
+																			</Badge>
+																		) : (
+																			<Badge
+																				variant='default'
+																				className='text-xs bg-blue-600'
+																			>
+																				Available
+																			</Badge>
+																		)}
+																	</div>
+																</div>
+															</div>
+														</div>
+													</div>
+												</div>
+											))
+										) : (
+											// Empty state
+											<div className='text-center py-8 text-gray-500'>
+												<BookOpen className='mx-auto h-12 w-12 mb-3 text-gray-300' />
+												<h3 className='font-semibold mb-1'>No Classes Found</h3>
+												<p className='text-sm'>
+													No available classes found for the selected academic
+													year and semester.
+												</p>
 											</div>
-										))}
+										)}
 									</div>
 								</CardContent>
 							</Card>
 						)}
 
-						{/* Registered Classes */}
-						{selectedStudent && getStudentRegistrations().length > 0 && (
+						{/* Enrolled Classes Table */}
+						{studentInfo && academicYear && semester && (
 							<Card className='shadow-lg border-0 bg-white/80 backdrop-blur-sm'>
 								<CardHeader className='pb-3'>
 									<div className='flex items-center justify-between'>
 										<div className='flex items-center gap-2'>
 											<CheckCircle className='h-5 w-5 text-green-600' />
 											<CardTitle className='text-lg'>
-												My Registered Classes
+												My Enrolled Classes
 											</CardTitle>
 										</div>
 										<Badge
 											variant='secondary'
 											className='bg-green-100 text-green-800'
 										>
-											{getStudentRegistrations().length} classes
+											{enrolledClasses.length} classes
 										</Badge>
 									</div>
 									<CardDescription>
-										Classes you are currently registered for
+										Classes you are enrolled in for {academicYear} - Semester{' '}
+										{semester}
 									</CardDescription>
 								</CardHeader>
 								<CardContent>
-									<div className='space-y-3'>
-										{getStudentRegistrations().map((registration) => (
-											<div
-												key={registration.id}
-												className='p-4 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800'
-											>
-												<div className='flex items-center justify-between'>
-													<div className='flex-1'>
-														<div className='flex items-center gap-2 mb-2'>
-															<h3 className='font-semibold text-green-800 dark:text-green-200'>
-																{registration.courseName}
-															</h3>
-															<Badge variant='outline' className='text-xs'>
-																{registration.courseCode}
-															</Badge>
-														</div>
-														<div className='grid grid-cols-2 md:grid-cols-4 gap-2 text-sm text-green-700 dark:text-green-300'>
-															<div>
-																<span className='font-medium'>Class ID:</span>{' '}
-																{registration.classId}
-															</div>
-															<div>
-																<span className='font-medium'>Group:</span>{' '}
-																{registration.group}
-															</div>
-															<div>
-																<span className='font-medium'>Instructor:</span>{' '}
-																{registration.instructor}
-															</div>
-															<div>
-																<span className='font-medium'>Registered:</span>{' '}
-																{registration.registrationDate}
-															</div>
-														</div>
-													</div>
-													<Button
-														variant='destructive'
-														size='sm'
-														onClick={() =>
-															handleCancelRegistration(registration)
-														}
-														className='ml-4'
-													>
-														<Trash2 className='mr-2 h-4 w-4' />
-														Cancel
-													</Button>
-												</div>
-											</div>
-										))}
-									</div>
-								</CardContent>
-							</Card>
-						)}
-					</div>
-
-					{/* Registration Panel - Sidebar */}
-					<div className='xl:col-span-1'>
-						{selectedClass && (
-							<Card className='shadow-lg border-0 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 sticky top-6'>
-								<CardHeader className='pb-3'>
-									<CardTitle className='flex items-center gap-2 text-lg'>
-										<UserPlus className='h-5 w-5 text-blue-600' />
-										Registration Panel
-									</CardTitle>
-									<CardDescription>
-										Confirm your course registration
-									</CardDescription>
-								</CardHeader>
-								<CardContent className='space-y-4'>
-									<div className='space-y-3'>
-										<div className='p-3 bg-white dark:bg-gray-800 rounded-lg'>
-											<Label className='text-xs text-gray-500 uppercase tracking-wide'>
-												Selected Course
-											</Label>
-											<div className='font-semibold text-blue-800 dark:text-blue-200'>
-												{selectedClass.courseName}
-											</div>
-											<div className='text-sm text-gray-600 dark:text-gray-400'>
-												{selectedClass.courseCode} - Group {selectedClass.group}
-											</div>
+									{enrolledClasses.length > 0 ? (
+										<div className='overflow-x-auto'>
+											<Table>
+												<TableHeader>
+													<TableRow>
+														<TableHead>Class ID</TableHead>
+														<TableHead>Subject Name</TableHead>
+														<TableHead>Group</TableHead>
+														<TableHead>Lecturer</TableHead>
+														<TableHead>Academic Year</TableHead>
+														<TableHead>Semester</TableHead>
+														<TableHead>Actions</TableHead>
+													</TableRow>
+												</TableHeader>
+												<TableBody>
+													{enrolledClasses.map((enrolledClass) => (
+														<TableRow key={enrolledClass.CREDIT_CLASS_ID}>
+															<TableCell className='font-medium'>
+																{enrolledClass.CREDIT_CLASS_ID}
+															</TableCell>
+															<TableCell>
+																{enrolledClass.SUBJECT_NAME}
+															</TableCell>
+															<TableCell>
+																<Badge variant='outline'>
+																	Group {enrolledClass.GROUP}
+																</Badge>
+															</TableCell>
+															<TableCell>
+																{enrolledClass.LECTURER_NAME}
+															</TableCell>
+															<TableCell>
+																{enrolledClass.ACADEMIC_YEAR}
+															</TableCell>
+															<TableCell>
+																<Badge variant='secondary'>
+																	Semester {enrolledClass.SEMESTER}
+																</Badge>
+															</TableCell>
+															<TableCell>
+																<Button
+																	onClick={() =>
+																		handleCancelEnrollment(enrolledClass)
+																	}
+																	disabled={isLoading}
+																	size='sm'
+																	variant='destructive'
+																	className='h-8'
+																>
+																	<X className='mr-1 h-3 w-3' />
+																	Cancel
+																</Button>
+															</TableCell>
+														</TableRow>
+													))}
+												</TableBody>
+											</Table>
 										</div>
-
-										<div className='p-3 bg-white dark:bg-gray-800 rounded-lg'>
-											<Label className='text-xs text-gray-500 uppercase tracking-wide'>
-												Student
-											</Label>
-											<div className='font-semibold'>
-												{selectedStudent?.firstName} {selectedStudent?.lastName}
-											</div>
-											<div className='text-sm text-gray-600 dark:text-gray-400'>
-												ID: {selectedStudent?.id}
-											</div>
+									) : (
+										<div className='text-center py-8 text-gray-500'>
+											<BookOpen className='mx-auto h-12 w-12 mb-3 text-gray-300' />
+											<h3 className='font-semibold mb-1'>
+												No Enrolled Classes
+											</h3>
+											<p className='text-sm'>
+												{!academicYear || !semester
+													? 'Select academic year and semester to view enrolled classes'
+													: 'You are not enrolled in any classes for this period'}
+											</p>
 										</div>
-
-										<div className='p-3 bg-white dark:bg-gray-800 rounded-lg'>
-											<Label className='text-xs text-gray-500 uppercase tracking-wide'>
-												Instructor
-											</Label>
-											<div className='font-semibold'>
-												{selectedClass.instructorName}
-											</div>
-										</div>
-
-										<div className='p-3 bg-white dark:bg-gray-800 rounded-lg'>
-											<Label className='text-xs text-gray-500 uppercase tracking-wide'>
-												Schedule
-											</Label>
-											<div className='text-sm'>{selectedClass.schedule}</div>
-										</div>
-									</div>
-
-									<Separator />
-
-									<div className='space-y-2'>
-										<div className='flex justify-between text-sm'>
-											<span>Available Spots:</span>
-											<span className='font-semibold'>
-												{selectedClass.maxStudents -
-													selectedClass.registeredStudents}{' '}
-												/ {selectedClass.maxStudents}
-											</span>
-										</div>
-										<div className='w-full bg-gray-200 rounded-full h-2'>
-											<div
-												className='bg-blue-600 h-2 rounded-full transition-all'
-												style={{
-													width: `${
-														(selectedClass.registeredStudents /
-															selectedClass.maxStudents) *
-														100
-													}%`,
-												}}
-											></div>
-										</div>
-									</div>
-
-									<Button
-										onClick={handleRegister}
-										className='w-full bg-blue-600 hover:bg-blue-700 shadow-lg'
-										size='lg'
-									>
-										<UserPlus className='mr-2 h-4 w-4' />
-										Register for This Course
-									</Button>
-								</CardContent>
-							</Card>
-						)}
-
-						{!selectedClass && availableClasses.length > 0 && (
-							<Card className='shadow-lg border-0 bg-gray-50 dark:bg-gray-800/50'>
-								<CardContent className='pt-6'>
-									<div className='text-center text-gray-500 dark:text-gray-400'>
-										<BookOpen className='mx-auto h-12 w-12 mb-3 text-gray-300' />
-										<h3 className='font-semibold mb-1'>Select a Course</h3>
-										<p className='text-sm'>
-											Choose a course from the available classes to register
-										</p>
-									</div>
+									)}
 								</CardContent>
 							</Card>
 						)}
@@ -1010,34 +1061,67 @@ function CourseRegistrationPageContent() {
 			<AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
 				<AlertDialogContent>
 					<AlertDialogHeader>
-						<AlertDialogTitle>
-							{confirmAction.type === 'register'
-								? 'Confirm Registration'
-								: 'Confirm Cancellation'}
-						</AlertDialogTitle>
+						<AlertDialogTitle>Confirm Registration</AlertDialogTitle>
 						<AlertDialogDescription>
-							{confirmAction.type === 'register'
-								? `Are you sure you want to register for ${selectedClass?.courseName}?`
-								: `Are you sure you want to cancel registration for ${confirmAction.data?.courseName}?`}
+							Are you sure you want to register for{' '}
+							<strong>{selectedClassForRegistration?.SUBJECT_NAME}</strong>?
+							<br />
+							<br />
+							<strong>Details:</strong>
+							<br />
+							Subject ID: {selectedClassForRegistration?.SUBJECT_ID}
+							<br />
+							Group: {selectedClassForRegistration?.GROUP_NUMBER}
+							<br />
+							Lecturer: {selectedClassForRegistration?.LECTURER_NAME}
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>
 						<AlertDialogCancel>Cancel</AlertDialogCancel>
 						<AlertDialogAction
-							onClick={
-								confirmAction.type === 'register'
-									? confirmRegister
-									: confirmCancelRegistration
-							}
-							className={
-								confirmAction.type === 'cancel'
-									? 'bg-destructive hover:bg-destructive/90'
-									: ''
-							}
+							onClick={confirmRegister}
+							disabled={isLoading}
+							className='bg-blue-600 hover:bg-blue-700'
 						>
-							{confirmAction.type === 'register'
-								? 'Register'
-								: 'Cancel Registration'}
+							{isLoading ? 'Registering...' : 'Yes, Register'}
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
+
+			{/* Cancel Confirmation Dialog */}
+			<AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Confirm Cancellation</AlertDialogTitle>
+						<AlertDialogDescription>
+							Are you sure you want to cancel your enrollment for{' '}
+							<strong>{selectedClassForCancellation?.SUBJECT_NAME}</strong>?
+							<br />
+							<br />
+							<strong>Details:</strong>
+							<br />
+							Class ID: {selectedClassForCancellation?.CREDIT_CLASS_ID}
+							<br />
+							Group: {selectedClassForCancellation?.GROUP}
+							<br />
+							Lecturer: {selectedClassForCancellation?.LECTURER_NAME}
+							<br />
+							<br />
+							<span className='text-red-600 font-medium'>
+								This action cannot be undone. You will need to register again if
+								you want to rejoin this class.
+							</span>
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>Keep Enrollment</AlertDialogCancel>
+						<AlertDialogAction
+							onClick={confirmCancelEnrollment}
+							disabled={isLoading}
+							className='bg-red-600 hover:bg-red-700'
+						>
+							{isLoading ? 'Cancelling...' : 'Yes, Cancel Enrollment'}
 						</AlertDialogAction>
 					</AlertDialogFooter>
 				</AlertDialogContent>

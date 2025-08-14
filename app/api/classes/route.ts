@@ -13,6 +13,7 @@ export async function GET(request: NextRequest) {
 	try {
 		const { searchParams } = new URL(request.url);
 		const departmentName = searchParams.get('department');
+		const classId = searchParams.get('classId');
 
 		if (!departmentName) {
 			return NextResponse.json({
@@ -36,8 +37,14 @@ export async function GET(request: NextRequest) {
 		const pool = await getDepartmentPool(department.server_name);
 		const request_db = pool.request();
 
-		// Execute the SQL query using English VIEW: SELECT CLASS_ID, CLASS_NAME, COURSE_YEAR, FACULTY_ID FROM CLASS
-		const query = `SELECT CLASS_ID, CLASS_NAME, COURSE_YEAR, FACULTY_ID FROM CLASS ORDER BY CLASS_ID`;
+		// Execute the SQL query - filter by classId if provided
+		let query = `SELECT CLASS_ID, CLASS_NAME, COURSE_YEAR, FACULTY_ID FROM CLASS`;
+		if (classId) {
+			query += ` WHERE CLASS_ID = @classId`;
+			request_db.input('classId', classId);
+		}
+		query += ` ORDER BY CLASS_ID`;
+
 		const result = await request_db.query<ClassData>(query);
 
 		return NextResponse.json({

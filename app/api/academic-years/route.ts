@@ -29,17 +29,16 @@ export async function GET(req: NextRequest) {
 		const pool = await getDepartmentPool(departmentInfo.server_name);
 		const request = pool.request();
 
-		// Call SP_DANHSACHNAMHOC stored procedure (Vietnamese name for academic year list)
+		// Call SP_GET_ACADEMIC_YEAR stored procedure
 		const result = await request.execute('SP_GET_ACADEMIC_YEAR');
 
-		const academicYears = result.recordset.map((row: any) => ({
-			value: row.ACADEMIC_YEAR || row.NAMHOC || row.NAM_HOC || row.YEAR,
-			label: row.ACADEMIC_YEAR || row.NAMHOC || row.NAM_HOC || row.YEAR,
-		}));
+		const academicYears = result.recordset.map((row: any) => row.ACADEMIC_YEAR);
 
 		return NextResponse.json({
 			success: true,
 			academicYears,
+			department: departmentInfo.branch_name,
+			serverName: departmentInfo.server_name,
 		});
 	} catch (error) {
 		console.error('Error fetching academic years:', error);

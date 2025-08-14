@@ -18,6 +18,7 @@ export async function GET(request: NextRequest) {
 	try {
 		const { searchParams } = new URL(request.url);
 		const departmentName = searchParams.get('department');
+		const studentId = searchParams.get('studentId');
 
 		if (!departmentName) {
 			return NextResponse.json({
@@ -41,17 +42,53 @@ export async function GET(request: NextRequest) {
 		const pool = await getDepartmentPool(department.server_name);
 		const request_db = pool.request();
 
-		// Execute the SQL query to get students with their class information
+		// If studentId is provided, get specific student information using SP_GET_STUDENT_INFORMATION
+		if (studentId) {
+			try {
+				const result = await request_db
+					.input('StudentID', studentId)
+					.execute('SP_GET_STUDENT_INFORMATION');
+
+				if (result.recordset && result.recordset.length > 0) {
+					const studentInfo = result.recordset[0];
+					return NextResponse.json({
+						success: true,
+						student: {
+							STUDENT_ID: studentInfo.STUDENT_ID,
+							FULL_NAME: studentInfo.FULL_NAME,
+							CLASS_ID: studentInfo.CLASS_ID,
+							CLASS_NAME: studentInfo.CLASS_NAME,
+							FACULTY_NAME: studentInfo.FACULTY_NAME,
+						},
+						department: department.branch_name,
+						serverName: department.server_name,
+					});
+				} else {
+					return NextResponse.json({
+						success: false,
+						error: 'Student not found',
+					});
+				}
+			} catch (error) {
+				console.error('Error executing SP_GET_STUDENT_INFORMATION:', error);
+				return NextResponse.json({
+					success: false,
+					error: 'Student not found or stored procedure error',
+				});
+			}
+		}
+
+		// Otherwise, get all students with their class information
 		const query = `
-			SELECT 
-				s.STUDENT_ID, 
-				s.LAST_NAME, 
-				s.FIRST_NAME, 
-				s.GENDER, 
-				s.ADDRESS, 
-				s.DATE_OF_BIRTH, 
-				s.CLASS_ID, 
-				s.SUSPENDED, 
+			SELECT
+				s.STUDENT_ID,
+				s.LAST_NAME,
+				s.FIRST_NAME,
+				s.GENDER,
+				s.ADDRESS,
+				s.DATE_OF_BIRTH,
+				s.CLASS_ID,
+				s.SUSPENDED,
 				s.PASSWORD,
 				c.CLASS_NAME
 			FROM STUDENT s

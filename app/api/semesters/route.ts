@@ -38,22 +38,19 @@ export async function GET(req: NextRequest) {
 		const request = pool.request();
 
 		// Call SP_GET_SEMESTER stored procedure with academic year parameter
-		console.log('Fetching semesters for academic year:', academicYear);
 		const result = await request
 			.input('AcademicYear', academicYear)
 			.execute('SP_GET_SEMESTER');
 
-		console.log('Semesters result:', result.recordset);
-		const semesters = result.recordset.map((row: any) => ({
-			value: row.SEMESTER.toString(),
-			label: `Semester ${row.SEMESTER}`,
-		}));
-
-		console.log('Mapped semesters:', semesters);
+		const semesters = result.recordset.map((row: any) =>
+			row.SEMESTER.toString(),
+		);
 
 		return NextResponse.json({
 			success: true,
 			semesters,
+			department: departmentInfo.branch_name,
+			serverName: departmentInfo.server_name,
 		});
 	} catch (error) {
 		console.error('Error fetching semesters:', error);

@@ -14,12 +14,16 @@ interface CreditClassData {
 	FACULTY_ID: string;
 	MIN_STUDENTS: number;
 	CANCELED_CLASS: boolean;
+	ENROLLED_STUDENTS?: number; // From SP_CREDIT_CLASS_LIST
 }
 
 export async function GET(request: NextRequest) {
 	try {
 		const { searchParams } = new URL(request.url);
 		const departmentName = searchParams.get('department');
+		const facultyId = searchParams.get('facultyId');
+		const academicYear = searchParams.get('academicYear');
+		const semester = searchParams.get('semester');
 
 		if (!departmentName) {
 			return NextResponse.json({
@@ -43,9 +47,33 @@ export async function GET(request: NextRequest) {
 		const pool = await getDepartmentPool(department.server_name);
 		const request_db = pool.request();
 
-		// Execute query to get credit classes with subject and lecturer information
+		// If facultyId, academicYear, and semester are provided, use SP_CREDIT_CLASS_LIST
+		if (facultyId && academicYear && semester) {
+			try {
+				const result = await request_db
+					.input('FacultyID', facultyId)
+					.input('AcademicYear', academicYear)
+					.input('Semester', parseInt(semester))
+					.execute('SP_CREDIT_CLASS_LIST');
+
+				return NextResponse.json({
+					success: true,
+					creditClasses: result.recordset || [],
+					department: department.branch_name,
+					serverName: department.server_name,
+				});
+			} catch (error) {
+				console.error('Error executing SP_CREDIT_CLASS_LIST:', error);
+				return NextResponse.json({
+					success: false,
+					error: 'Failed to fetch credit classes using stored procedure',
+				});
+			}
+		}
+
+		// Otherwise, execute query to get all credit classes with subject and lecturer information
 		const query = `
-			SELECT 
+			SELECT
 				cc.CREDIT_CLASS_ID,
 				cc.ACADEMIC_YEAR,
 				cc.SEMESTER,
@@ -401,7 +429,9 @@ export async function DELETE(request: NextRequest) {
 		`;
 
 		// Since mssql doesn't support array binding in IN clause directly, we'll build the query
-		const placeholders = creditClassIds.map((_, index) => `@id${index}`).join(',');
+		const placeholders = creditClassIds
+			.map((_, index) => `@id${index}`)
+			.join(',');
 		const enrollmentCheckQuery = `
 			SELECT COUNT(*) as count 
 			FROM ENROLLMENT 
@@ -413,7 +443,9 @@ export async function DELETE(request: NextRequest) {
 			enrollmentRequest = enrollmentRequest.input(`id${index}`, parseInt(id));
 		});
 
-		const enrollmentResult = await enrollmentRequest.query(enrollmentCheckQuery);
+		const enrollmentResult = await enrollmentRequest.query(
+			enrollmentCheckQuery,
+		);
 
 		if (enrollmentResult.recordset[0].count > 0) {
 			return NextResponse.json({
@@ -451,4 +483,3 @@ export async function DELETE(request: NextRequest) {
 		});
 	}
 }
-
