@@ -70,6 +70,12 @@ const allNavItems = [
 				icon: BarChart3,
 				page: 'student-grades' as DashboardPage,
 			},
+			{
+				title: 'Tuition Payment',
+				url: '/dashboard/tuition-payment/',
+				icon: CreditCard,
+				page: 'tuition-payment' as DashboardPage,
+			},
 		],
 	},
 	{
@@ -87,12 +93,6 @@ const allNavItems = [
 		title: 'Financial Management',
 		items: [
 			{
-				title: 'Tuition Payment',
-				url: '/dashboard/tuition-payment',
-				icon: CreditCard,
-				page: 'tuition-payment' as DashboardPage,
-			},
-			{
 				title: 'Tuition Reports',
 				url: '/dashboard/tuition-reports',
 				icon: DollarSign,
@@ -105,7 +105,7 @@ const allNavItems = [
 		items: [
 			{
 				title: 'Reports',
-				url: '/dashboard/reports',
+				url: '/dashboard/reports/',
 				icon: FileText,
 				page: 'reports' as DashboardPage,
 			},
@@ -128,9 +128,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 		if (currentUser) {
 			setUser(currentUser);
 			// Map the authentication role to permission role
-			const role = mapAuthRoleToUserRole(
-				currentUser.role || currentUser.groupName || 'STUDENT',
-			);
+			// Prioritize groupName over role since groupName contains the specific role (PKT, PGV, etc.)
+			const authRole = currentUser.groupName || currentUser.role || 'STUDENT';
+			const role = mapAuthRoleToUserRole(authRole);
+
 			setUserRole(role);
 		}
 	}, []);

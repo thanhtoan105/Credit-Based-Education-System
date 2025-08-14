@@ -1,643 +1,961 @@
-"use client";
+'use client';
 
-import React, { useState, useEffect } from 'react';
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { toast } from "@/hooks/use-toast";
-import { Toaster } from "@/components/ui/toaster";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Search, Plus, Save, CreditCard, User, Calendar, DollarSign } from "lucide-react";
+import React, { useState, useEffect, useCallback } from 'react';
+import { getCurrentUser } from '@/lib/session';
+import { Button } from '@/components/ui/button';
+import {
+	Card,
+	CardContent,
+	CardDescription,
+	CardHeader,
+	CardTitle,
+} from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { toast } from '@/lib/toast';
+import { Toaster } from '@/components/ui/sonner';
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogHeader,
+	DialogTitle,
+} from '@/components/ui/dialog';
+import {
+	Search,
+	User,
+	Calendar as CalendarLucide,
+	DollarSign,
+	Loader2,
+	Eye,
+	Plus,
+	CalendarIcon,
+} from 'lucide-react';
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from '@/components/ui/tooltip';
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { format } from 'date-fns';
+import { cn } from '@/lib/utils';
 
-// Interfaces
-interface Student {
-  id: string;
-  name: string;
-  class: string;
-  departmentCode: string;
-  year: string;
-  email: string;
+// Import our new types
+import {
+	DetailedTuitionFeeResponse,
+	TuitionPaymentDetailsResponse,
+	StudentInfo,
+	DetailedTuitionFeeRecord,
+	TuitionPaymentDetail,
+	PaymentStatus,
+	isSuccessfulTuitionFeeResponse,
+	isSuccessfulPaymentDetailsResponse,
+} from '@/lib/types/tuition.types';
+
+// Enhanced interfaces for the new implementation
+interface TuitionRecordDisplay extends DetailedTuitionFeeRecord {
+	id: string;
+	studentId: string;
+	status: PaymentStatus;
 }
 
-interface TuitionRecord {
-  id: string;
-  studentId: string;
-  academicYear: string;
-  semester: string;
-  tuitionFee: number;
-  amountPaid: number;
-  amountDue: number;
-  status: 'paid' | 'partial' | 'unpaid';
-}
-
-interface PaymentDetail {
-  id: string;
-  tuitionRecordId: string;
-  paymentDate: string;
-  amountPaid: number;
-  paymentMethod: string;
-  notes?: string;
+interface PaymentDetailsModalState {
+	isOpen: boolean;
+	studentId: string | null;
+	academicYear: string | null;
+	semester: number | null;
+	isLoading: boolean;
+	paymentDetails: TuitionPaymentDetail[];
+	error: string | null;
 }
 
 // Mock data
 const mockStudents: Student[] = [
-  { id: "SV001", name: "Nguyen Van An", class: "CNTT-K65-A1", departmentCode: "CNTT", year: "2024-2025", email: "an.nv@student.edu" },
-  { id: "SV002", name: "Tran Thi Binh", class: "CNTT-K65-A1", departmentCode: "CNTT", year: "2024-2025", email: "binh.tt@student.edu" },
-  { id: "SV003", name: "Le Van Cuong", class: "CNTT-K65-A2", departmentCode: "CNTT", year: "2024-2025", email: "cuong.lv@student.edu" },
-  { id: "SV004", name: "Pham Thi Dung", class: "VT-K65-B1", departmentCode: "VT", year: "2024-2025", email: "dung.pt@student.edu" },
-  { id: "SV005", name: "Hoang Van Em", class: "VT-K65-B1", departmentCode: "VT", year: "2024-2025", email: "em.hv@student.edu" },
+	{
+		id: 'SV001',
+		name: 'Nguyen Van An',
+		class: 'CNTT-K65-A1',
+		departmentCode: 'CNTT',
+		year: '2024-2025',
+		email: 'an.nv@student.edu',
+	},
+	{
+		id: 'SV002',
+		name: 'Tran Thi Binh',
+		class: 'CNTT-K65-A1',
+		departmentCode: 'CNTT',
+		year: '2024-2025',
+		email: 'binh.tt@student.edu',
+	},
+	{
+		id: 'SV003',
+		name: 'Le Van Cuong',
+		class: 'CNTT-K65-A2',
+		departmentCode: 'CNTT',
+		year: '2024-2025',
+		email: 'cuong.lv@student.edu',
+	},
+	{
+		id: 'SV004',
+		name: 'Pham Thi Dung',
+		class: 'VT-K65-B1',
+		departmentCode: 'VT',
+		year: '2024-2025',
+		email: 'dung.pt@student.edu',
+	},
+	{
+		id: 'SV005',
+		name: 'Hoang Van Em',
+		class: 'VT-K65-B1',
+		departmentCode: 'VT',
+		year: '2024-2025',
+		email: 'em.hv@student.edu',
+	},
 ];
 
 const initialTuitionRecords: TuitionRecord[] = [
-  {
-    id: "TR001",
-    studentId: "SV001",
-    academicYear: "2024-2025",
-    semester: "1",
-    tuitionFee: 15000000,
-    amountPaid: 15000000,
-    amountDue: 0,
-    status: 'paid'
-  },
-  {
-    id: "TR002",
-    studentId: "SV001",
-    academicYear: "2024-2025",
-    semester: "2",
-    tuitionFee: 15000000,
-    amountPaid: 10000000,
-    amountDue: 5000000,
-    status: 'partial'
-  },
-  {
-    id: "TR003",
-    studentId: "SV001",
-    academicYear: "2023-2024",
-    semester: "1",
-    tuitionFee: 14000000,
-    amountPaid: 14000000,
-    amountDue: 0,
-    status: 'paid'
-  },
+	{
+		id: 'TR001',
+		studentId: 'SV001',
+		academicYear: '2024-2025',
+		semester: '1',
+		tuitionFee: 15000000,
+		amountPaid: 15000000,
+		amountDue: 0,
+		status: 'paid',
+	},
+	{
+		id: 'TR002',
+		studentId: 'SV001',
+		academicYear: '2024-2025',
+		semester: '2',
+		tuitionFee: 15000000,
+		amountPaid: 10000000,
+		amountDue: 5000000,
+		status: 'partial',
+	},
+	{
+		id: 'TR003',
+		studentId: 'SV001',
+		academicYear: '2023-2024',
+		semester: '1',
+		tuitionFee: 14000000,
+		amountPaid: 14000000,
+		amountDue: 0,
+		status: 'paid',
+	},
 ];
 
 const initialPaymentDetails: PaymentDetail[] = [
-  {
-    id: "PD001",
-    tuitionRecordId: "TR001",
-    paymentDate: "2024-01-15",
-    amountPaid: 15000000,
-    paymentMethod: "Bank Transfer",
-    notes: "Full payment for semester 1"
-  },
-  {
-    id: "PD002",
-    tuitionRecordId: "TR002",
-    paymentDate: "2024-02-20",
-    amountPaid: 10000000,
-    paymentMethod: "Cash",
-    notes: "Partial payment"
-  },
-  {
-    id: "PD003",
-    tuitionRecordId: "TR003",
-    paymentDate: "2023-08-10",
-    amountPaid: 14000000,
-    paymentMethod: "Bank Transfer",
-    notes: "Full payment for semester 1"
-  },
+	{
+		id: 'PD001',
+		tuitionRecordId: 'TR001',
+		paymentDate: '2024-01-15',
+		amountPaid: 15000000,
+		paymentMethod: 'Bank Transfer',
+		notes: 'Full payment for semester 1',
+	},
+	{
+		id: 'PD002',
+		tuitionRecordId: 'TR002',
+		paymentDate: '2024-02-20',
+		amountPaid: 10000000,
+		paymentMethod: 'Cash',
+		notes: 'Partial payment',
+	},
+	{
+		id: 'PD003',
+		tuitionRecordId: 'TR003',
+		paymentDate: '2023-08-10',
+		amountPaid: 14000000,
+		paymentMethod: 'Bank Transfer',
+		notes: 'Full payment for semester 1',
+	},
 ];
 
 export default function TuitionPaymentPage() {
-  // State management
-  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
-  const [studentSearch, setStudentSearch] = useState("");
-  const [tuitionRecords, setTuitionRecords] = useState<TuitionRecord[]>(initialTuitionRecords);
-  const [paymentDetails, setPaymentDetails] = useState<PaymentDetail[]>(initialPaymentDetails);
-  const [selectedTuitionRecord, setSelectedTuitionRecord] = useState<TuitionRecord | null>(null);
-  const [isAddTuitionDialogOpen, setIsAddTuitionDialogOpen] = useState(false);
-  const [isAddPaymentDialogOpen, setIsAddPaymentDialogOpen] = useState(false);
+	// State management for new implementation
+	const [studentId, setStudentId] = useState<string>('');
+	const [studentInfo, setStudentInfo] = useState<StudentInfo | null>(null);
+	const [tuitionRecords, setTuitionRecords] = useState<TuitionRecordDisplay[]>(
+		[],
+	);
 
-  // Form states
-  const [tuitionFormData, setTuitionFormData] = useState({
-    academicYear: "",
-    semester: "",
-    tuitionFee: 0
-  });
+	const [isLoading, setIsLoading] = useState<boolean>(false);
+	const [error, setError] = useState<string | null>(null);
+	const [currentDepartment, setCurrentDepartment] = useState<string | null>(
+		null,
+	);
 
-  const [paymentFormData, setPaymentFormData] = useState({
-    paymentDate: "",
-    amountPaid: 0,
-    paymentMethod: "",
-    notes: ""
-  });
+	// Payment details modal state
+	const [paymentModal, setPaymentModal] = useState<PaymentDetailsModalState>({
+		isOpen: false,
+		studentId: null,
+		academicYear: null,
+		semester: null,
+		isLoading: false,
+		paymentDetails: [],
+		error: null,
+	});
 
-  // Filtered data
-  const filteredStudents = mockStudents.filter(student =>
-    student.id.toLowerCase().includes(studentSearch.toLowerCase()) ||
-    student.name.toLowerCase().includes(studentSearch.toLowerCase())
-  );
+	// Payment form modal state
+	const [paymentFormModal, setPaymentFormModal] = useState({
+		isOpen: false,
+		studentId: '',
+		academicYear: '',
+		semester: 0,
+		isLoading: false,
+	});
 
-  const studentTuitionRecords = tuitionRecords
-    .filter(record => record.studentId === selectedStudent?.id)
-    .sort((a, b) => {
-      if (a.academicYear !== b.academicYear) {
-        return b.academicYear.localeCompare(a.academicYear);
-      }
-      return parseInt(b.semester) - parseInt(a.semester);
-    });
+	// Payment form data
+	const [paymentFormData, setPaymentFormData] = useState({
+		paymentDate: new Date(),
+		amountPaid: 0,
+	});
 
-  const recordPaymentDetails = paymentDetails.filter(detail =>
-    detail.tuitionRecordId === selectedTuitionRecord?.id
-  );
+	// Date picker popover state
+	const [datePickerOpen, setDatePickerOpen] = useState(false);
 
-  // Handle student selection
-  const handleStudentSelect = (student: Student) => {
-    setSelectedStudent(student);
-    setStudentSearch("");
-    setSelectedTuitionRecord(null);
-  };
+	// Get current user's department on component mount
+	useEffect(() => {
+		const currentUser = getCurrentUser();
+		if (currentUser?.department?.branch_name) {
+			setCurrentDepartment(currentUser.department.branch_name);
+		}
+	}, []);
 
-  // Handle tuition record selection
-  const handleTuitionRecordSelect = (record: TuitionRecord) => {
-    setSelectedTuitionRecord(record);
-  };
+	// API Functions
+	const fetchStudentTuitionData = useCallback(
+		async (studentIdInput: string) => {
+			if (!studentIdInput.trim()) {
+				setStudentInfo(null);
+				setTuitionRecords([]);
+				setError(null);
+				return;
+			}
 
-  // Calculate amounts
-  const calculateAmounts = (tuitionFee: number, payments: PaymentDetail[]) => {
-    const totalPaid = payments.reduce((sum, payment) => sum + payment.amountPaid, 0);
-    const due = tuitionFee - totalPaid;
-    return { totalPaid, due };
-  };
+			if (!currentDepartment) {
+				setError('Department information not available');
+				return;
+			}
 
-  // Handle add tuition record
-  const handleAddTuitionRecord = () => {
-    if (!selectedStudent || !tuitionFormData.academicYear || !tuitionFormData.semester || tuitionFormData.tuitionFee <= 0) {
-      toast({
-        title: "Validation Error",
-        description: "Please fill in all required fields",
-        variant: "destructive",
-      });
-      return;
-    }
+			setIsLoading(true);
+			setError(null);
 
-    const newRecord: TuitionRecord = {
-      id: `TR${String(tuitionRecords.length + 1).padStart(3, '0')}`,
-      studentId: selectedStudent.id,
-      academicYear: tuitionFormData.academicYear,
-      semester: tuitionFormData.semester,
-      tuitionFee: tuitionFormData.tuitionFee,
-      amountPaid: 0,
-      amountDue: tuitionFormData.tuitionFee,
-      status: 'unpaid'
-    };
+			try {
+				const response = await fetch(
+					`/api/tuition/detailed-fee?studentId=${encodeURIComponent(
+						studentIdInput.trim(),
+					)}&department=${encodeURIComponent(currentDepartment)}`,
+				);
+				const data: DetailedTuitionFeeResponse = await response.json();
 
-    setTuitionRecords(prev => [...prev, newRecord]);
-    setTuitionFormData({ academicYear: "", semester: "", tuitionFee: 0 });
-    setIsAddTuitionDialogOpen(false);
+				if (isSuccessfulTuitionFeeResponse(data)) {
+					setStudentInfo(data.studentInfo);
 
-    toast({
-      title: "Success!",
-      description: "Tuition record added successfully",
-    });
-  };
+					// Transform API data to display format
+					const displayRecords: TuitionRecordDisplay[] =
+						data.tuitionRecords.map((record, index) => ({
+							...record,
+							id: `TR${index + 1}`,
+							studentId: data.studentInfo.STUDENT_ID,
+							status: determinePaymentStatus(
+								record.FEE_AMOUNT,
+								record.AMOUNT_PAID,
+							),
+						}));
 
-  // Handle add payment
-  const handleAddPayment = () => {
-    if (!selectedTuitionRecord || !paymentFormData.paymentDate || paymentFormData.amountPaid <= 0 || !paymentFormData.paymentMethod) {
-      toast({
-        title: "Validation Error",
-        description: "Please fill in all required fields",
-        variant: "destructive",
-      });
-      return;
-    }
+					setTuitionRecords(displayRecords);
 
-    if (paymentFormData.amountPaid > selectedTuitionRecord.amountDue) {
-      toast({
-        title: "Validation Error",
-        description: "Payment amount cannot exceed amount due",
-        variant: "destructive",
-      });
-      return;
-    }
+					toast.success({
+						title: `Loaded ${displayRecords.length} tuition records for ${data.studentInfo.FULL_NAME}`,
+					});
+				} else {
+					setError(data.error || 'Failed to fetch student data');
+					setStudentInfo(null);
+					setTuitionRecords([]);
 
-    const newPayment: PaymentDetail = {
-      id: `PD${String(paymentDetails.length + 1).padStart(3, '0')}`,
-      tuitionRecordId: selectedTuitionRecord.id,
-      paymentDate: paymentFormData.paymentDate,
-      amountPaid: paymentFormData.amountPaid,
-      paymentMethod: paymentFormData.paymentMethod,
-      notes: paymentFormData.notes
-    };
+					toast.error({
+						title: data.error || 'Failed to fetch student data',
+					});
+				}
+			} catch (error) {
+				const errorMessage =
+					error instanceof Error ? error.message : 'Network error occurred';
+				setError(errorMessage);
+				setStudentInfo(null);
+				setTuitionRecords([]);
 
-    setPaymentDetails(prev => [...prev, newPayment]);
+				toast.error({
+					title: errorMessage,
+				});
+			} finally {
+				setIsLoading(false);
+			}
+		},
+		[currentDepartment],
+	);
 
-    // Update tuition record amounts
-    const updatedRecords = tuitionRecords.map(record => {
-      if (record.id === selectedTuitionRecord.id) {
-        const newAmountPaid = record.amountPaid + paymentFormData.amountPaid;
-        const newAmountDue = record.tuitionFee - newAmountPaid;
-        const newStatus = newAmountDue === 0 ? 'paid' : newAmountDue < record.tuitionFee ? 'partial' : 'unpaid';
-        
-        return {
-          ...record,
-          amountPaid: newAmountPaid,
-          amountDue: newAmountDue,
-          status: newStatus as 'paid' | 'partial' | 'unpaid'
-        };
-      }
-      return record;
-    });
+	const fetchPaymentDetails = useCallback(
+		async (studentId: string, academicYear: string, semester: number) => {
+			if (!currentDepartment) {
+				setPaymentModal((prev) => ({
+					...prev,
+					isLoading: false,
+					error: 'Department information not available',
+				}));
+				return;
+			}
 
-    setTuitionRecords(updatedRecords);
-    setSelectedTuitionRecord(updatedRecords.find(r => r.id === selectedTuitionRecord.id) || null);
-    setPaymentFormData({ paymentDate: "", amountPaid: 0, paymentMethod: "", notes: "" });
-    setIsAddPaymentDialogOpen(false);
+			setPaymentModal((prev) => ({ ...prev, isLoading: true, error: null }));
 
-    toast({
-      title: "Success!",
-      description: "Payment recorded successfully",
-    });
-  };
+			try {
+				const response = await fetch(
+					`/api/tuition/payment-details?studentId=${encodeURIComponent(
+						studentId,
+					)}&academicYear=${encodeURIComponent(
+						academicYear,
+					)}&semester=${semester}&department=${encodeURIComponent(
+						currentDepartment,
+					)}`,
+				);
+				const data: TuitionPaymentDetailsResponse = await response.json();
 
-  // Format currency
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('vi-VN', {
-      style: 'currency',
-      currency: 'VND'
-    }).format(amount);
-  };
+				if (isSuccessfulPaymentDetailsResponse(data)) {
+					setPaymentModal((prev) => ({
+						...prev,
+						paymentDetails: data.paymentDetails,
+						isLoading: false,
+						error: null,
+					}));
+				} else {
+					setPaymentModal((prev) => ({
+						...prev,
+						paymentDetails: [],
+						isLoading: false,
+						error: data.error || 'Failed to fetch payment details',
+					}));
+				}
+			} catch (error) {
+				const errorMessage =
+					error instanceof Error ? error.message : 'Network error occurred';
+				setPaymentModal((prev) => ({
+					...prev,
+					paymentDetails: [],
+					isLoading: false,
+					error: errorMessage,
+				}));
+			}
+		},
+		[currentDepartment],
+	);
 
-  // Get status color
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'paid': return 'bg-green-100 text-green-800';
-      case 'partial': return 'bg-yellow-100 text-yellow-800';
-      case 'unpaid': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
+	// Utility functions
+	const determinePaymentStatus = (
+		feeAmount: number,
+		amountPaid: number,
+	): PaymentStatus => {
+		if (amountPaid >= feeAmount) return PaymentStatus.PAID;
+		if (amountPaid > 0) return PaymentStatus.PARTIAL;
+		return PaymentStatus.UNPAID;
+	};
 
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Tuition Payment Management</h1>
-          <p className="text-gray-600 mt-1">Manage student tuition payments and records (PkeToan Access Only)</p>
-        </div>
-        <Badge className="bg-purple-100 text-purple-800">
-          <CreditCard className="w-4 h-4 mr-1" />
-          Accounting Module
-        </Badge>
-      </div>
+	const formatCurrency = (amount: number) => {
+		return new Intl.NumberFormat('vi-VN').format(amount);
+	};
 
-      {/* Student Search */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Student Search</CardTitle>
-          <CardDescription>Search and select a student to manage their tuition payments</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-              <Input
-                placeholder="Search by Student ID or Name..."
-                value={studentSearch}
-                onChange={(e) => setStudentSearch(e.target.value)}
-                className="pl-10"
-              />
-            </div>
+	const getStatusColor = (status: PaymentStatus) => {
+		switch (status) {
+			case PaymentStatus.PAID:
+				return 'bg-green-100 text-green-800';
+			case PaymentStatus.PARTIAL:
+				return 'bg-yellow-100 text-yellow-800';
+			case PaymentStatus.UNPAID:
+				return 'bg-red-100 text-red-800';
+			default:
+				return 'bg-gray-100 text-gray-800';
+		}
+	};
 
-            {/* Student Search Results */}
-            {studentSearch && (
-              <div className="border rounded-lg max-h-48 overflow-y-auto">
-                {filteredStudents.map((student) => (
-                  <div
-                    key={student.id}
-                    className="p-3 hover:bg-gray-50 cursor-pointer border-b last:border-b-0"
-                    onClick={() => handleStudentSelect(student)}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="font-medium">{student.name}</div>
-                        <div className="text-sm text-gray-500">ID: {student.id} | Class: {student.class}</div>
-                      </div>
-                      <Badge className="bg-blue-100 text-blue-800">{student.departmentCode}</Badge>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+	// Event handlers for new implementation
+	const handleStudentIdChange = useCallback(
+		(e: React.ChangeEvent<HTMLInputElement>) => {
+			const value = e.target.value.toUpperCase();
+			setStudentId(value);
 
-            {/* Selected Student Info */}
-            {selectedStudent && (
-              <div className="bg-blue-50 p-4 rounded-lg">
-                <div className="flex items-center space-x-4">
-                  <User className="h-8 w-8 text-blue-600" />
-                  <div>
-                    <h3 className="font-medium text-blue-900">{selectedStudent.name}</h3>
-                    <p className="text-sm text-blue-700">ID: {selectedStudent.id} | Class: {selectedStudent.class}</p>
-                    <p className="text-sm text-blue-600">{selectedStudent.email}</p>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+			// Clear data when input is empty
+			if (value.trim().length === 0) {
+				setStudentInfo(null);
+				setTuitionRecords([]);
+				setError(null);
+			}
+		},
+		[],
+	);
 
-      {/* Tuition Records */}
-      {selectedStudent && (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>Tuition Payment Records</CardTitle>
-                <CardDescription>
-                  Payment history for {selectedStudent.name} (ordered by academic year and semester)
-                </CardDescription>
-              </div>
-              <Dialog open={isAddTuitionDialogOpen} onOpenChange={setIsAddTuitionDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button className="bg-green-50 text-green-600 hover:bg-green-100">
-                    <Plus className="mr-2 h-4 w-4" />
-                    Add Tuition Record
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Add New Tuition Record</DialogTitle>
-                    <DialogDescription>
-                      Create a new tuition record for {selectedStudent.name}
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="grid gap-4 py-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="academicYear">Academic Year</Label>
-                        <Select 
-                          value={tuitionFormData.academicYear} 
-                          onValueChange={(value) => setTuitionFormData(prev => ({ ...prev, academicYear: value }))}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select year" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="2023-2024">2023-2024</SelectItem>
-                            <SelectItem value="2024-2025">2024-2025</SelectItem>
-                            <SelectItem value="2025-2026">2025-2026</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="semester">Semester</Label>
-                        <Select 
-                          value={tuitionFormData.semester} 
-                          onValueChange={(value) => setTuitionFormData(prev => ({ ...prev, semester: value }))}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select semester" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="1">Semester 1</SelectItem>
-                            <SelectItem value="2">Semester 2</SelectItem>
-                            <SelectItem value="3">Semester 3</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="tuitionFee">Total Tuition Fee (VND)</Label>
-                      <Input
-                        id="tuitionFee"
-                        type="number"
-                        placeholder="Enter tuition fee"
-                        value={tuitionFormData.tuitionFee || ""}
-                        onChange={(e) => setTuitionFormData(prev => ({ ...prev, tuitionFee: parseInt(e.target.value) || 0 }))}
-                      />
-                    </div>
-                  </div>
-                  <div className="flex justify-end space-x-2">
-                    <Button variant="outline" onClick={() => setIsAddTuitionDialogOpen(false)}>
-                      Cancel
-                    </Button>
-                    <Button onClick={handleAddTuitionRecord} className="bg-green-50 text-green-600 hover:bg-green-100">
-                      <Save className="mr-2 h-4 w-4" />
-                      Save Record
-                    </Button>
-                  </div>
-                </DialogContent>
-              </Dialog>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Academic Year</TableHead>
-                    <TableHead>Semester</TableHead>
-                    <TableHead className="text-right">Tuition Fee</TableHead>
-                    <TableHead className="text-right">Amount Paid</TableHead>
-                    <TableHead className="text-right">Amount Due</TableHead>
-                    <TableHead className="text-center">Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {studentTuitionRecords.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8 text-gray-500">
-                        No tuition records found for this student
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    studentTuitionRecords.map((record) => (
-                      <TableRow 
-                        key={record.id} 
-                        className={`cursor-pointer hover:bg-gray-50 ${selectedTuitionRecord?.id === record.id ? 'bg-blue-50' : ''}`}
-                        onClick={() => handleTuitionRecordSelect(record)}
-                      >
-                        <TableCell className="font-medium">{record.academicYear}</TableCell>
-                        <TableCell>
-                          <Badge className="bg-purple-100 text-purple-800">
-                            Semester {record.semester}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right font-medium">
-                          {formatCurrency(record.tuitionFee)}
-                        </TableCell>
-                        <TableCell className="text-right text-green-600 font-medium">
-                          {formatCurrency(record.amountPaid)}
-                        </TableCell>
-                        <TableCell className="text-right text-red-600 font-medium">
-                          {formatCurrency(record.amountDue)}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <Badge className={getStatusColor(record.status)}>
-                            {record.status.charAt(0).toUpperCase() + record.status.slice(1)}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+	const handleFindStudent = useCallback(() => {
+		if (studentId.trim()) {
+			fetchStudentTuitionData(studentId.trim());
+		}
+	}, [studentId, fetchStudentTuitionData]);
 
-      {/* Payment Details */}
-      {selectedTuitionRecord && (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>Payment Details</CardTitle>
-                <CardDescription>
-                  Payment history for {selectedTuitionRecord.academicYear} - Semester {selectedTuitionRecord.semester}
-                </CardDescription>
-              </div>
-              {selectedTuitionRecord.amountDue > 0 && (
-                <Dialog open={isAddPaymentDialogOpen} onOpenChange={setIsAddPaymentDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button className="bg-blue-50 text-blue-600 hover:bg-blue-100">
-                      <Plus className="mr-2 h-4 w-4" />
-                      Add Payment
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Record New Payment</DialogTitle>
-                      <DialogDescription>
-                        Record payment for {selectedStudent?.name} - {selectedTuitionRecord.academicYear} Semester {selectedTuitionRecord.semester}
-                        <br />
-                        <span className="text-red-600 font-medium">Amount Due: {formatCurrency(selectedTuitionRecord.amountDue)}</span>
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="grid gap-4 py-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="paymentDate">Payment Date</Label>
-                          <Input
-                            id="paymentDate"
-                            type="date"
-                            value={paymentFormData.paymentDate}
-                            onChange={(e) => setPaymentFormData(prev => ({ ...prev, paymentDate: e.target.value }))}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="amountPaid">Amount Paid (VND)</Label>
-                          <Input
-                            id="amountPaid"
-                            type="number"
-                            placeholder="Enter amount"
-                            max={selectedTuitionRecord.amountDue}
-                            value={paymentFormData.amountPaid || ""}
-                            onChange={(e) => setPaymentFormData(prev => ({ ...prev, amountPaid: parseInt(e.target.value) || 0 }))}
-                          />
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="paymentMethod">Payment Method</Label>
-                        <Select 
-                          value={paymentFormData.paymentMethod} 
-                          onValueChange={(value) => setPaymentFormData(prev => ({ ...prev, paymentMethod: value }))}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select payment method" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Cash">Cash</SelectItem>
-                            <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
-                            <SelectItem value="Credit Card">Credit Card</SelectItem>
-                            <SelectItem value="Online Payment">Online Payment</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="notes">Notes (Optional)</Label>
-                        <Input
-                          id="notes"
-                          placeholder="Enter payment notes"
-                          value={paymentFormData.notes}
-                          onChange={(e) => setPaymentFormData(prev => ({ ...prev, notes: e.target.value }))}
-                        />
-                      </div>
-                    </div>
-                    <div className="flex justify-end space-x-2">
-                      <Button variant="outline" onClick={() => setIsAddPaymentDialogOpen(false)}>
-                        Cancel
-                      </Button>
-                      <Button onClick={handleAddPayment} className="bg-blue-50 text-blue-600 hover:bg-blue-100">
-                        <Save className="mr-2 h-4 w-4" />
-                        Record Payment
-                      </Button>
-                    </div>
-                  </DialogContent>
-                </Dialog>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Payment Date</TableHead>
-                    <TableHead className="text-right">Amount Paid</TableHead>
-                    <TableHead>Payment Method</TableHead>
-                    <TableHead>Notes</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {recordPaymentDetails.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={4} className="text-center py-8 text-gray-500">
-                        No payment records found for this tuition period
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    recordPaymentDetails.map((payment) => (
-                      <TableRow key={payment.id}>
-                        <TableCell className="font-medium">
-                          <div className="flex items-center">
-                            <Calendar className="mr-2 h-4 w-4 text-gray-400" />
-                            {new Date(payment.paymentDate).toLocaleDateString('vi-VN')}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right text-green-600 font-medium">
-                          <div className="flex items-center justify-end">
-                            <DollarSign className="mr-1 h-4 w-4" />
-                            {formatCurrency(payment.amountPaid)}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge className="bg-gray-100 text-gray-800">
-                            {payment.paymentMethod}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-gray-600">
-                          {payment.notes || '-'}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+	const handleKeyPress = useCallback(
+		(e: React.KeyboardEvent<HTMLInputElement>) => {
+			if (e.key === 'Enter') {
+				handleFindStudent();
+			}
+		},
+		[handleFindStudent],
+	);
 
-      <Toaster />
-    </div>
-  );
-} 
+	const handleViewPaymentDetails = useCallback(
+		(record: TuitionRecordDisplay) => {
+			setPaymentModal({
+				isOpen: true,
+				studentId: record.studentId,
+				academicYear: record.ACADEMIC_YEAR,
+				semester: record.SEMESTER,
+				isLoading: false,
+				paymentDetails: [],
+				error: null,
+			});
+
+			// Fetch payment details
+			fetchPaymentDetails(
+				record.studentId,
+				record.ACADEMIC_YEAR,
+				record.SEMESTER,
+			);
+		},
+		[fetchPaymentDetails],
+	);
+
+	const handleClosePaymentModal = useCallback(() => {
+		setPaymentModal({
+			isOpen: false,
+			studentId: null,
+			academicYear: null,
+			semester: null,
+			isLoading: false,
+			paymentDetails: [],
+			error: null,
+		});
+	}, []);
+
+	const handleOpenPaymentForm = useCallback((record: TuitionRecordDisplay) => {
+		setPaymentFormModal({
+			isOpen: true,
+			studentId: record.studentId,
+			academicYear: record.ACADEMIC_YEAR,
+			semester: parseInt(record.SEMESTER),
+			isLoading: false,
+		});
+		setPaymentFormData({
+			paymentDate: new Date(), // Today's date - user can change if needed
+			amountPaid: 0,
+		});
+	}, []);
+
+	const handleClosePaymentForm = useCallback(() => {
+		setPaymentFormModal({
+			isOpen: false,
+			studentId: '',
+			academicYear: '',
+			semester: 0,
+			isLoading: false,
+		});
+		setPaymentFormData({
+			paymentDate: new Date(),
+			amountPaid: 0,
+		});
+		setDatePickerOpen(false);
+	}, []);
+
+	const handleSubmitPayment = useCallback(async () => {
+		if (!paymentFormData.paymentDate || paymentFormData.amountPaid <= 0) {
+			toast.error({
+				title: 'Please enter valid payment date and amount',
+			});
+			return;
+		}
+
+		if (!currentDepartment) {
+			toast.error({
+				title: 'Department information not available',
+			});
+			return;
+		}
+
+		setPaymentFormModal((prev) => ({ ...prev, isLoading: true }));
+
+		try {
+			console.log('Submitting payment:', {
+				studentId: paymentFormModal.studentId,
+				academicYear: paymentFormModal.academicYear,
+				semester: paymentFormModal.semester,
+				paymentDate: format(paymentFormData.paymentDate, 'yyyy-MM-dd'),
+				amountPaid: paymentFormData.amountPaid,
+				departmentName: currentDepartment,
+			});
+
+			const response = await fetch('/api/tuition-payment/pay', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({
+					studentId: paymentFormModal.studentId,
+					academicYear: paymentFormModal.academicYear,
+					semester: paymentFormModal.semester,
+					paymentDate: format(paymentFormData.paymentDate, 'yyyy-MM-dd'),
+					amountPaid: paymentFormData.amountPaid,
+					departmentName: currentDepartment,
+				}),
+			});
+
+			if (!response.ok) {
+				const errorData = await response.json();
+				console.error('Payment API error:', errorData);
+				throw new Error(errorData.error || 'Failed to process payment');
+			}
+
+			toast.success({
+				title: 'Payment recorded successfully',
+			});
+
+			// Close modal and refresh data
+			handleClosePaymentForm();
+			if (studentId) {
+				handleFindStudent();
+			}
+		} catch (error) {
+			console.error('Error processing payment:', error);
+			toast.error({
+				title: 'Failed to process payment. Please try again.',
+			});
+		} finally {
+			setPaymentFormModal((prev) => ({ ...prev, isLoading: false }));
+		}
+	}, [
+		paymentFormData,
+		paymentFormModal,
+		handleClosePaymentForm,
+		studentId,
+		handleFindStudent,
+		currentDepartment,
+	]);
+
+	return (
+		<div className='space-y-6'>
+			{/* Header */}
+			<div className='flex items-center justify-between'>
+				<div>
+					<h1 className='text-3xl font-bold text-gray-900'>
+						Tuition Payment Management
+					</h1>
+					<p className='text-gray-600 mt-1'>
+						Manage student tuition payments and records (PkeToan Access Only)
+					</p>
+				</div>
+				<Badge className='bg-purple-100 text-purple-800'>
+					<DollarSign className='w-4 h-4 mr-1' />
+					Accounting Module
+				</Badge>
+			</div>
+
+			{/* Student ID Input */}
+			<Card>
+				<CardHeader>
+					<CardTitle>Student Tuition Information</CardTitle>
+					<CardDescription>
+						Enter a student ID to automatically load their tuition payment
+						records
+					</CardDescription>
+				</CardHeader>
+				<CardContent>
+					<div className='space-y-4'>
+						<div className='flex gap-2'>
+							<div className='relative flex-1'>
+								<Search className='absolute left-3 top-3 h-4 w-4 text-gray-400' />
+								<Input
+									placeholder='Enter Student ID (e.g., SV001)...'
+									value={studentId}
+									onChange={handleStudentIdChange}
+									onKeyPress={handleKeyPress}
+									className='pl-10'
+									disabled={isLoading}
+								/>
+								{isLoading && (
+									<Loader2 className='absolute right-3 top-3 h-4 w-4 animate-spin text-gray-400' />
+								)}
+							</div>
+							<Button
+								onClick={handleFindStudent}
+								disabled={isLoading || !studentId.trim()}
+								className='bg-blue-600 hover:bg-blue-700'
+							>
+								{isLoading ? (
+									<>
+										<Loader2 className='h-4 w-4 mr-2 animate-spin' />
+										Finding...
+									</>
+								) : (
+									<>
+										<Search className='h-4 w-4 mr-2' />
+										Find
+									</>
+								)}
+							</Button>
+						</div>
+
+						{/* Error Display */}
+						{error && (
+							<div className='bg-red-50 border border-red-200 rounded-lg p-3'>
+								<p className='text-sm text-red-600'>{error}</p>
+							</div>
+						)}
+
+						{/* Student Info Display */}
+						{studentInfo && (
+							<div className='bg-blue-50 p-4 rounded-lg'>
+								<div className='flex items-center space-x-4'>
+									<User className='h-8 w-8 text-blue-600' />
+									<div>
+										<h3 className='font-medium text-blue-900'>
+											{studentInfo.FULL_NAME}
+										</h3>
+										<p className='text-sm text-blue-700'>
+											ID: {studentInfo.STUDENT_ID} | Class:{' '}
+											{studentInfo.CLASS_ID}
+										</p>
+										<p className='text-sm text-blue-600'>
+											{tuitionRecords.length} tuition record(s) found
+										</p>
+									</div>
+								</div>
+							</div>
+						)}
+					</div>
+				</CardContent>
+			</Card>
+
+			{/* Tuition Records */}
+			{studentInfo && tuitionRecords.length > 0 && (
+				<Card>
+					<CardHeader>
+						<div className='flex items-center justify-between'>
+							<div>
+								<CardTitle>Tuition Payment Records</CardTitle>
+								<CardDescription>
+									Payment history for {studentInfo.FULL_NAME} (ordered by
+									academic year and semester)
+								</CardDescription>
+							</div>
+						</div>
+					</CardHeader>
+					<CardContent>
+						<div className='rounded-md border'>
+							<Table>
+								<TableHeader>
+									<TableRow>
+										<TableHead>Academic Year</TableHead>
+										<TableHead>Semester</TableHead>
+										<TableHead className='text-right'>Tuition Fee</TableHead>
+										<TableHead className='text-right'>Amount Paid</TableHead>
+										<TableHead className='text-right'>Amount Due</TableHead>
+										<TableHead className='text-center'>Status</TableHead>
+										<TableHead className='text-center'>Actions</TableHead>
+									</TableRow>
+								</TableHeader>
+								<TableBody>
+									{tuitionRecords.length === 0 ? (
+										<TableRow>
+											<TableCell
+												colSpan={7}
+												className='text-center py-8 text-gray-500'
+											>
+												No tuition records found for this student
+											</TableCell>
+										</TableRow>
+									) : (
+										tuitionRecords.map((record) => (
+											<TableRow key={record.id} className='hover:bg-gray-50'>
+												<TableCell className='font-medium'>
+													{record.ACADEMIC_YEAR}
+												</TableCell>
+												<TableCell>
+													<Badge className='bg-purple-100 text-purple-800'>
+														Semester {record.SEMESTER}
+													</Badge>
+												</TableCell>
+												<TableCell className='text-right font-medium'>
+													{formatCurrency(record.FEE_AMOUNT)}
+												</TableCell>
+												<TableCell className='text-right text-green-600 font-medium'>
+													{formatCurrency(record.AMOUNT_PAID)}
+												</TableCell>
+												<TableCell className='text-right text-red-600 font-medium'>
+													{formatCurrency(record.AMOUNT_DUE)}
+												</TableCell>
+												<TableCell className='text-center'>
+													<Badge className={getStatusColor(record.status)}>
+														{record.status.charAt(0).toUpperCase() +
+															record.status.slice(1)}
+													</Badge>
+												</TableCell>
+												<TableCell className='text-center'>
+													<div className='flex gap-2 justify-center'>
+														<TooltipProvider>
+															<Tooltip>
+																<TooltipTrigger asChild>
+																	<Button
+																		variant='outline'
+																		size='sm'
+																		onClick={(e) => {
+																			e.stopPropagation();
+																			handleViewPaymentDetails(record);
+																		}}
+																	>
+																		<Eye className='h-4 w-4' />
+																	</Button>
+																</TooltipTrigger>
+																<TooltipContent>
+																	<p>View Details</p>
+																</TooltipContent>
+															</Tooltip>
+														</TooltipProvider>
+														{record.AMOUNT_DUE > 0 && (
+															<TooltipProvider>
+																<Tooltip>
+																	<TooltipTrigger asChild>
+																		<Button
+																			variant='outline'
+																			size='sm'
+																			className='bg-green-50 text-green-600 hover:bg-green-100'
+																			onClick={(e) => {
+																				e.stopPropagation();
+																				handleOpenPaymentForm(record);
+																			}}
+																		>
+																			<Plus className='h-4 w-4' />
+																		</Button>
+																	</TooltipTrigger>
+																	<TooltipContent>
+																		<p>Pay / Update</p>
+																	</TooltipContent>
+																</Tooltip>
+															</TooltipProvider>
+														)}
+													</div>
+												</TableCell>
+											</TableRow>
+										))
+									)}
+								</TableBody>
+							</Table>
+						</div>
+					</CardContent>
+				</Card>
+			)}
+
+			{/* Payment Details Modal */}
+			<Dialog open={paymentModal.isOpen} onOpenChange={handleClosePaymentModal}>
+				<DialogContent className='max-w-4xl'>
+					<DialogHeader>
+						<DialogTitle>Payment Details</DialogTitle>
+						<DialogDescription>
+							Payment history for {studentInfo?.FULL_NAME} -{' '}
+							{paymentModal.academicYear} Semester {paymentModal.semester}
+						</DialogDescription>
+					</DialogHeader>
+
+					<div className='mt-4'>
+						{paymentModal.isLoading ? (
+							<div className='flex items-center justify-center py-8'>
+								<Loader2 className='h-6 w-6 animate-spin mr-2' />
+								<span>Loading payment details...</span>
+							</div>
+						) : paymentModal.error ? (
+							<div className='bg-red-50 border border-red-200 rounded-lg p-4'>
+								<p className='text-sm text-red-600'>{paymentModal.error}</p>
+							</div>
+						) : (
+							<div className='rounded-md border'>
+								<Table>
+									<TableHeader>
+										<TableRow>
+											<TableHead>Payment Date</TableHead>
+											<TableHead className='text-right'>Amount Paid</TableHead>
+										</TableRow>
+									</TableHeader>
+									<TableBody>
+										{paymentModal.paymentDetails.length === 0 ? (
+											<TableRow>
+												<TableCell
+													colSpan={2}
+													className='text-center py-8 text-gray-500'
+												>
+													No payment records found for this period
+												</TableCell>
+											</TableRow>
+										) : (
+											paymentModal.paymentDetails.map((payment, index) => (
+												<TableRow key={index}>
+													<TableCell className='font-medium'>
+														<div className='flex items-center'>
+															<CalendarLucide className='mr-2 h-4 w-4 text-gray-400' />
+															{payment.PAYMENT_DATE}
+														</div>
+													</TableCell>
+													<TableCell className='text-right text-green-600 font-medium'>
+														{formatCurrency(payment.AMOUNT_PAID)}
+													</TableCell>
+												</TableRow>
+											))
+										)}
+									</TableBody>
+								</Table>
+
+								{paymentModal.paymentDetails.length > 0 && (
+									<div className='border-t bg-gray-50 px-4 py-3'>
+										<div className='flex justify-between items-center text-sm'>
+											<span className='font-medium'>
+												Total Payments: {paymentModal.paymentDetails.length}
+											</span>
+											<span className='font-medium text-green-600'>
+												Total Amount:{' '}
+												{formatCurrency(
+													paymentModal.paymentDetails.reduce(
+														(sum, p) => sum + p.AMOUNT_PAID,
+														0,
+													),
+												)}
+											</span>
+										</div>
+									</div>
+								)}
+							</div>
+						)}
+					</div>
+				</DialogContent>
+			</Dialog>
+
+			{/* Payment Form Modal */}
+			<Dialog
+				open={paymentFormModal.isOpen}
+				onOpenChange={handleClosePaymentForm}
+			>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>Record Payment</DialogTitle>
+						<DialogDescription>
+							Record a new payment for {studentInfo?.FULL_NAME} -{' '}
+							{paymentFormModal.academicYear} Semester{' '}
+							{paymentFormModal.semester}
+							<br />
+							<span className='text-sm text-amber-600 mt-1 block'>
+								Note: Each payment date must be unique. If a payment already
+								exists for the selected date, please choose a different date.
+							</span>
+						</DialogDescription>
+					</DialogHeader>
+					<div className='grid gap-4 py-4'>
+						<div className='space-y-2'>
+							<Label>Payment Date</Label>
+							<Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+								<PopoverTrigger asChild>
+									<Button
+										variant='outline'
+										className={cn(
+											'w-full justify-start text-left font-normal',
+											!paymentFormData.paymentDate && 'text-muted-foreground',
+										)}
+										onClick={() => {
+											console.log(
+												'Date picker button clicked, current state:',
+												datePickerOpen,
+											);
+											setDatePickerOpen(!datePickerOpen);
+										}}
+									>
+										<CalendarIcon className='mr-2 h-4 w-4' />
+										{paymentFormData.paymentDate ? (
+											format(paymentFormData.paymentDate, 'PPP')
+										) : (
+											<span>Pick a date</span>
+										)}
+									</Button>
+								</PopoverTrigger>
+								<PopoverContent className='w-auto p-0'>
+									<Calendar
+										mode='single'
+										selected={paymentFormData.paymentDate}
+										onSelect={(date) => {
+											setPaymentFormData((prev) => ({
+												...prev,
+												paymentDate: date || new Date(),
+											}));
+											setDatePickerOpen(false);
+										}}
+										initialFocus
+									/>
+								</PopoverContent>
+							</Popover>
+						</div>
+						<div className='space-y-2'>
+							<Label htmlFor='amountPaid'>Amount Paid (VND)</Label>
+							<Input
+								id='amountPaid'
+								type='number'
+								placeholder='Enter payment amount'
+								value={paymentFormData.amountPaid || ''}
+								onChange={(e) =>
+									setPaymentFormData((prev) => ({
+										...prev,
+										amountPaid: parseInt(e.target.value) || 0,
+									}))
+								}
+							/>
+						</div>
+					</div>
+					<div className='flex justify-end space-x-2'>
+						<Button variant='outline' onClick={handleClosePaymentForm}>
+							Cancel
+						</Button>
+						<Button
+							onClick={handleSubmitPayment}
+							disabled={paymentFormModal.isLoading}
+							className='bg-green-600 hover:bg-green-700'
+						>
+							{paymentFormModal.isLoading ? (
+								<>
+									<Loader2 className='mr-2 h-4 w-4 animate-spin' />
+									Processing...
+								</>
+							) : (
+								'Save Payment'
+							)}
+						</Button>
+					</div>
+				</DialogContent>
+			</Dialog>
+
+			<Toaster />
+		</div>
+	);
+}

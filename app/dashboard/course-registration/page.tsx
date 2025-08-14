@@ -38,8 +38,8 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { useToast } from '@/hooks/use-toast';
-import { Toaster } from '@/components/ui/toaster';
+import { toast } from '@/lib/toast';
+import { Toaster } from '@/components/ui/sonner';
 import { Label } from '@/components/ui/label';
 import {
 	Select,
@@ -253,7 +253,7 @@ const initialRegistrations: Registration[] = [
 ];
 
 function CourseRegistrationPageContent() {
-	const { toast } = useToast();
+	// Toast is imported directly from @/lib/toast
 
 	// State management
 	const [studentId, setStudentId] = useState('');
@@ -284,16 +284,13 @@ function CourseRegistrationPageContent() {
 			const student = mockStudents.find((s) => s.id === studentId);
 			if (student) {
 				setSelectedStudent(student);
-				toast({
-					title: 'Student Found',
-					description: `Found student: ${student.firstName} ${student.lastName}`,
+				toast.success({
+					title: `Found student: ${student.firstName} ${student.lastName}`,
 				});
 			} else {
 				setSelectedStudent(null);
-				toast({
-					title: 'Student Not Found',
-					description: 'Please check the student ID and try again.',
-					variant: 'destructive',
+				toast.error({
+					title: 'Please check the student ID and try again.',
 				});
 			}
 			setIsLoading(false);
@@ -303,10 +300,8 @@ function CourseRegistrationPageContent() {
 	// Search available classes
 	const handleClassSearch = () => {
 		if (!academicYear || !semester) {
-			toast({
-				title: 'Missing Information',
-				description: 'Please select both academic year and semester.',
-				variant: 'destructive',
+			toast.error({
+				title: 'Please select both academic year and semester.',
 			});
 			return;
 		}
@@ -323,9 +318,8 @@ function CourseRegistrationPageContent() {
 			);
 			setAvailableClasses(filtered);
 
-			toast({
-				title: 'Classes Loaded',
-				description: `Found ${filtered.length} available classes for ${academicYear} - Semester ${semester}`,
+			toast.success({
+				title: `Found ${filtered.length} available classes for ${academicYear} - Semester ${semester}`,
 			});
 			setIsLoading(false);
 		}, 800);

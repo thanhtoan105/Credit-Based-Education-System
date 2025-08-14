@@ -28,7 +28,7 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/lib/toast';
-import { Toaster } from '@/components/ui/toaster';
+import { Toaster } from '@/components/ui/sonner';
 import { Play, Save, RotateCcw, Loader2 } from 'lucide-react';
 
 // Interfaces

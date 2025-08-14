@@ -91,26 +91,35 @@ interface Department {
 	serverName: string;
 }
 
-// Dynamic department to faculty mapping (will be populated from API)
-const getDepartmentFacultyMapping = (departmentName: string): string => {
-	// Map department names to faculty IDs based on common patterns
-	if (departmentName.toLowerCase().includes('information technology') || 
-	    departmentName.toLowerCase().includes('cntt') ||
-	    departmentName.toLowerCase() === 'it') {
-		return 'IT';
+// Get faculty ID from database instead of hardcoded mapping
+const getFacultyIdFromDatabase = async (
+	departmentName: string,
+): Promise<string> => {
+	try {
+		const response = await fetch(
+			`/api/departments/${encodeURIComponent(departmentName)}/faculty`,
+		);
+		const data = await response.json();
+
+		if (data.success) {
+			return data.facultyId;
+		} else {
+			console.warn('Failed to get faculty ID from database:', data.error);
+			return 'IT'; // Default fallback
+		}
+	} catch (error) {
+		console.error('Error fetching faculty ID from database:', error);
+		return 'IT'; // Default fallback
 	}
-	if (departmentName.toLowerCase().includes('telecommunication') || 
-	    departmentName.toLowerCase().includes('telecom') ||
-	    departmentName.toLowerCase().includes('vt')) {
-		return 'TELECOM';
-	}
-	// Default fallback
-	return 'IT';
 };
 
 // API utility functions
-const fetchCreditClasses = async (departmentName: string): Promise<CreditClass[]> => {
-	const response = await fetch(`/api/credit-classes?department=${encodeURIComponent(departmentName)}`);
+const fetchCreditClasses = async (
+	departmentName: string,
+): Promise<CreditClass[]> => {
+	const response = await fetch(
+		`/api/credit-classes?department=${encodeURIComponent(departmentName)}`,
+	);
 	const data = await response.json();
 	if (!data.success) {
 		throw new Error(data.error || 'Failed to fetch credit classes');
@@ -128,7 +137,9 @@ const fetchSubjects = async (): Promise<Subject[]> => {
 };
 
 const fetchLecturers = async (subjectId?: string): Promise<Lecturer[]> => {
-	const url = subjectId ? `/api/lecturers?subjectId=${subjectId}` : '/api/lecturers';
+	const url = subjectId
+		? `/api/lecturers?subjectId=${subjectId}`
+		: '/api/lecturers';
 	const response = await fetch(url);
 	const data = await response.json();
 	if (!data.success) {
@@ -163,18 +174,24 @@ const updateCreditClass = async (creditClass: any, departmentName: string) => {
 	return data;
 };
 
-const deleteCreditClass = async (creditClassId: number, departmentName: string) => {
-	const response = await fetch(`/api/credit-classes?ids=${creditClassId}&department=${encodeURIComponent(departmentName)}`, {
-		method: 'DELETE',
-	});
+const deleteCreditClass = async (
+	creditClassId: number,
+	departmentName: string,
+) => {
+	const response = await fetch(
+		`/api/credit-classes?ids=${creditClassId}&department=${encodeURIComponent(
+			departmentName,
+		)}`,
+		{
+			method: 'DELETE',
+		},
+	);
 	const data = await response.json();
 	if (!data.success) {
 		throw new Error(data.error || 'Failed to delete credit class');
 	}
 	return data;
 };
-
-
 
 export default function CreditClassesPage() {
 	const [searchTerm, setSearchTerm] = useState('');
@@ -183,7 +200,8 @@ export default function CreditClassesPage() {
 	const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
 	const [selectedClasses, setSelectedClasses] = useState<number[]>([]);
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-	const [selectedClassForDelete, setSelectedClassForDelete] = useState<CreditClass | null>(null);
+	const [selectedClassForDelete, setSelectedClassForDelete] =
+		useState<CreditClass | null>(null);
 	const [creditClassData, setCreditClassData] = useState<CreditClass[]>([]);
 	const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 	const [editFormData, setEditFormData] = useState<CreditClass | null>(null);
@@ -195,6 +213,7 @@ export default function CreditClassesPage() {
 	const [lecturers, setLecturers] = useState<Lecturer[]>([]);
 	const [availableLecturers, setAvailableLecturers] = useState<Lecturer[]>([]);
 	const [error, setError] = useState<string | null>(null);
+	const [displayFacultyId, setDisplayFacultyId] = useState<string>('');
 
 	// Form data for adding credit classes
 	const [formData, setFormData] = useState({
@@ -251,17 +270,19 @@ export default function CreditClassesPage() {
 			const loadData = async () => {
 				setError(null);
 				try {
-					const [creditClassesData, subjectsData, lecturersData] = await Promise.all([
-						fetchCreditClasses(selectedDepartment),
-						fetchSubjects(),
-						fetchLecturers(),
-					]);
-					
+					const [creditClassesData, subjectsData, lecturersData] =
+						await Promise.all([
+							fetchCreditClasses(selectedDepartment),
+							fetchSubjects(),
+							fetchLecturers(),
+						]);
+
 					setCreditClassData(creditClassesData);
 					setSubjects(subjectsData);
 					setLecturers(lecturersData);
 				} catch (err) {
-					const errorMessage = err instanceof Error ? err.message : 'Failed to load data';
+					const errorMessage =
+						err instanceof Error ? err.message : 'Failed to load data';
 					setError(errorMessage);
 					toast.error({
 						title: errorMessage,
@@ -275,10 +296,24 @@ export default function CreditClassesPage() {
 
 	// Update form data when department changes
 	useEffect(() => {
-		setFormData(prev => ({
-			...prev,
-			facultyId: selectedDepartment ? getDepartmentFacultyMapping(selectedDepartment) : '',
-		}));
+		const updateFacultyId = async () => {
+			if (selectedDepartment) {
+				const facultyId = await getFacultyIdFromDatabase(selectedDepartment);
+				setFormData((prev) => ({
+					...prev,
+					facultyId,
+				}));
+				setDisplayFacultyId(facultyId);
+			} else {
+				setFormData((prev) => ({
+					...prev,
+					facultyId: '',
+				}));
+				setDisplayFacultyId('');
+			}
+		};
+
+		updateFacultyId();
 	}, [selectedDepartment]);
 
 	// Filter credit classes (API already filters by department, so we only need search filtering)
@@ -288,7 +323,7 @@ export default function CreditClassesPage() {
 			cls.SUBJECT_NAME.toLowerCase().includes(searchTerm.toLowerCase()) ||
 			cls.LECTURER_NAME.toLowerCase().includes(searchTerm.toLowerCase()) ||
 			cls.GROUP_NUMBER.toString().includes(searchTerm.toLowerCase());
-		
+
 		return matchesSearch;
 	});
 
@@ -324,8 +359,6 @@ export default function CreditClassesPage() {
 		}));
 	};
 
-
-
 	const handleAdd = async () => {
 		if (
 			!formData.academicYear ||
@@ -343,19 +376,22 @@ export default function CreditClassesPage() {
 		setIsSubmitting(true);
 		try {
 			await createCreditClass(formData, selectedDepartment);
-			
+
 			// Reload data
 			const updatedData = await fetchCreditClasses(selectedDepartment);
 			setCreditClassData(updatedData);
-			
+
 			// Reset form
+			const facultyId = selectedDepartment
+				? await getFacultyIdFromDatabase(selectedDepartment)
+				: '';
 			setFormData({
 				academicYear: '',
 				semester: 1,
 				groupNumber: 1,
 				subjectId: '',
 				lecturerId: '',
-				facultyId: selectedDepartment ? getDepartmentFacultyMapping(selectedDepartment) : '',
+				facultyId,
 				minStudents: 20,
 				canceledClass: false,
 			});
@@ -366,7 +402,8 @@ export default function CreditClassesPage() {
 				title: 'Credit class added successfully',
 			});
 		} catch (err) {
-			const errorMessage = err instanceof Error ? err.message : 'Failed to add credit class';
+			const errorMessage =
+				err instanceof Error ? err.message : 'Failed to add credit class';
 			toast.error({
 				title: errorMessage,
 			});
@@ -386,30 +423,34 @@ export default function CreditClassesPage() {
 
 		setIsSubmitting(true);
 		try {
-			await deleteCreditClass(selectedClassForDelete.CREDIT_CLASS_ID, selectedDepartment);
-			
+			await deleteCreditClass(
+				selectedClassForDelete.CREDIT_CLASS_ID,
+				selectedDepartment,
+			);
+
 			// Reload data
 			const updatedData = await fetchCreditClasses(selectedDepartment);
 			setCreditClassData(updatedData);
-			
-					setIsDeleteDialogOpen(false);
-		setSelectedClassForDelete(null);
 
-		toast.success({
-			title: 'Credit class deleted successfully',
-		});
-	} catch (err) {
-		const errorMessage = err instanceof Error ? err.message : 'Failed to delete credit class';
-		toast.error({
-			title: errorMessage,
-		});
-	} finally {
-		setIsSubmitting(false);
-	}
-};
+			setIsDeleteDialogOpen(false);
+			setSelectedClassForDelete(null);
+
+			toast.success({
+				title: 'Credit class deleted successfully',
+			});
+		} catch (err) {
+			const errorMessage =
+				err instanceof Error ? err.message : 'Failed to delete credit class';
+			toast.error({
+				title: errorMessage,
+			});
+		} finally {
+			setIsSubmitting(false);
+		}
+	};
 
 	const handleCreditClassIdClick = (creditClass: CreditClass) => {
-		setEditFormData({...creditClass});
+		setEditFormData({ ...creditClass });
 		setIsEditModalOpen(true);
 		// Load lecturers for the subject
 		getAvailableLecturers(creditClass.SUBJECT_ID);
@@ -454,20 +495,21 @@ export default function CreditClassesPage() {
 
 			setIsEditModalOpen(false);
 			setEditFormData(null);
-					setAvailableLecturers([]);
-		
-		toast.success({
-			title: 'Credit class updated successfully',
-		});
-	} catch (err) {
-		const errorMessage = err instanceof Error ? err.message : 'Failed to update credit class';
-		toast.error({
-			title: errorMessage,
-		});
-	} finally {
-		setIsSubmitting(false);
-	}
-};
+			setAvailableLecturers([]);
+
+			toast.success({
+				title: 'Credit class updated successfully',
+			});
+		} catch (err) {
+			const errorMessage =
+				err instanceof Error ? err.message : 'Failed to update credit class';
+			toast.error({
+				title: errorMessage,
+			});
+		} finally {
+			setIsSubmitting(false);
+		}
+	};
 
 	// Handle subject change in edit modal
 	const handleEditSubjectChange = (subjectCode: string) => {
@@ -490,7 +532,9 @@ export default function CreditClassesPage() {
 
 	// Handle lecturer change in edit modal
 	const handleEditLecturerChange = (lecturerId: string) => {
-		const lecturer = availableLecturers.find((l) => l.LECTURER_ID === lecturerId);
+		const lecturer = availableLecturers.find(
+			(l) => l.LECTURER_ID === lecturerId,
+		);
 		if (lecturer && editFormData) {
 			setEditFormData((prev) =>
 				prev
@@ -506,17 +550,17 @@ export default function CreditClassesPage() {
 
 	if (isLoading) {
 		return (
-			<div className="flex items-center justify-center h-64">
-				<Loader2 className="h-8 w-8 animate-spin" />
-				<span className="ml-2">Loading credit classes...</span>
+			<div className='flex items-center justify-center h-64'>
+				<Loader2 className='h-8 w-8 animate-spin' />
+				<span className='ml-2'>Loading credit classes...</span>
 			</div>
 		);
 	}
 
 	if (error) {
 		return (
-			<div className="text-center py-8">
-				<p className="text-red-600 mb-4">Error: {error}</p>
+			<div className='text-center py-8'>
+				<p className='text-red-600 mb-4'>Error: {error}</p>
 				<Button onClick={() => window.location.reload()}>Retry</Button>
 			</div>
 		);
@@ -591,7 +635,11 @@ export default function CreditClassesPage() {
 											<Label htmlFor='facultyId'>Department Code</Label>
 											<Input
 												id='facultyId'
-												value={selectedDepartment ? `${getDepartmentFacultyMapping(selectedDepartment)} - ${selectedDepartment}` : ''}
+												value={
+													selectedDepartment && displayFacultyId
+														? `${displayFacultyId} - ${selectedDepartment}`
+														: ''
+												}
 												readOnly
 												className='bg-gray-50 cursor-not-allowed'
 											/>
@@ -603,7 +651,10 @@ export default function CreditClassesPage() {
 												placeholder='e.g., 2024-2025'
 												value={formData.academicYear}
 												onChange={(e) =>
-													setFormData((prev) => ({ ...prev, academicYear: e.target.value }))
+													setFormData((prev) => ({
+														...prev,
+														academicYear: e.target.value,
+													}))
 												}
 											/>
 										</div>
@@ -620,7 +671,10 @@ export default function CreditClassesPage() {
 												placeholder='e.g., 1, 2, 3'
 												value={formData.semester}
 												onChange={(e) =>
-													setFormData((prev) => ({ ...prev, semester: parseInt(e.target.value) || 1 }))
+													setFormData((prev) => ({
+														...prev,
+														semester: parseInt(e.target.value) || 1,
+													}))
 												}
 											/>
 										</div>
@@ -654,7 +708,10 @@ export default function CreditClassesPage() {
 												</SelectTrigger>
 												<SelectContent>
 													{subjects.map((subject) => (
-														<SelectItem key={subject.SUBJECT_ID} value={subject.SUBJECT_ID}>
+														<SelectItem
+															key={subject.SUBJECT_ID}
+															value={subject.SUBJECT_ID}
+														>
 															{subject.SUBJECT_NAME}
 														</SelectItem>
 													))}
@@ -692,7 +749,10 @@ export default function CreditClassesPage() {
 												</SelectTrigger>
 												<SelectContent>
 													{availableLecturers.map((lecturer) => (
-														<SelectItem key={lecturer.LECTURER_ID} value={lecturer.LECTURER_ID}>
+														<SelectItem
+															key={lecturer.LECTURER_ID}
+															value={lecturer.LECTURER_ID}
+														>
 															{lecturer.FULL_NAME}
 														</SelectItem>
 													))}
@@ -743,7 +803,9 @@ export default function CreditClassesPage() {
 										className='bg-blue-50 text-blue-600 hover:bg-blue-100'
 										disabled={isSubmitting}
 									>
-										{isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+										{isSubmitting && (
+											<Loader2 className='mr-2 h-4 w-4 animate-spin' />
+										)}
 										Add Credit Class
 									</Button>
 								</div>
@@ -779,7 +841,11 @@ export default function CreditClassesPage() {
 										<Label htmlFor='editFacultyId'>Department Code</Label>
 										<Input
 											id='editFacultyId'
-											value={selectedDepartment ? `${getDepartmentFacultyMapping(selectedDepartment)} - ${selectedDepartment}` : ''}
+											value={
+												selectedDepartment && displayFacultyId
+													? `${displayFacultyId} - ${selectedDepartment}`
+													: ''
+											}
 											readOnly
 											className='bg-gray-50 cursor-not-allowed'
 										/>
@@ -795,7 +861,9 @@ export default function CreditClassesPage() {
 											value={editFormData.ACADEMIC_YEAR}
 											onChange={(e) =>
 												setEditFormData((prev) =>
-													prev ? { ...prev, ACADEMIC_YEAR: e.target.value } : null,
+													prev
+														? { ...prev, ACADEMIC_YEAR: e.target.value }
+														: null,
 												)
 											}
 										/>
@@ -811,7 +879,12 @@ export default function CreditClassesPage() {
 											value={editFormData.SEMESTER}
 											onChange={(e) =>
 												setEditFormData((prev) =>
-													prev ? { ...prev, SEMESTER: parseInt(e.target.value) || 1 } : null,
+													prev
+														? {
+																...prev,
+																SEMESTER: parseInt(e.target.value) || 1,
+														  }
+														: null,
 												)
 											}
 										/>
@@ -829,7 +902,12 @@ export default function CreditClassesPage() {
 											value={editFormData.GROUP_NUMBER}
 											onChange={(e) =>
 												setEditFormData((prev) =>
-													prev ? { ...prev, GROUP_NUMBER: parseInt(e.target.value) || 1 } : null,
+													prev
+														? {
+																...prev,
+																GROUP_NUMBER: parseInt(e.target.value) || 1,
+														  }
+														: null,
 												)
 											}
 										/>
@@ -867,7 +945,10 @@ export default function CreditClassesPage() {
 											</SelectTrigger>
 											<SelectContent>
 												{subjects.map((subject) => (
-													<SelectItem key={subject.SUBJECT_ID} value={subject.SUBJECT_ID}>
+													<SelectItem
+														key={subject.SUBJECT_ID}
+														value={subject.SUBJECT_ID}
+													>
 														{subject.SUBJECT_NAME}
 													</SelectItem>
 												))}
@@ -906,7 +987,10 @@ export default function CreditClassesPage() {
 											</SelectTrigger>
 											<SelectContent>
 												{availableLecturers.map((lecturer) => (
-													<SelectItem key={lecturer.LECTURER_ID} value={lecturer.LECTURER_ID}>
+													<SelectItem
+														key={lecturer.LECTURER_ID}
+														value={lecturer.LECTURER_ID}
+													>
 														{lecturer.FULL_NAME}
 													</SelectItem>
 												))}
@@ -947,7 +1031,9 @@ export default function CreditClassesPage() {
 							className='bg-blue-50 text-blue-600 hover:bg-blue-100'
 							disabled={isSubmitting}
 						>
-							{isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+							{isSubmitting && (
+								<Loader2 className='mr-2 h-4 w-4 animate-spin' />
+							)}
 							Update Credit Class
 						</Button>
 					</div>
@@ -964,7 +1050,6 @@ export default function CreditClassesPage() {
 								{filteredClasses.length} credit classes found
 							</CardDescription>
 						</div>
-
 					</div>
 				</CardHeader>
 				<CardContent>
@@ -990,99 +1075,105 @@ export default function CreditClassesPage() {
 										colSpan={10}
 										className='text-center py-8 text-gray-500'
 									>
-									No credit classes found matching your criteria
-								</TableCell>
-							</TableRow>
-						) : (
-							filteredClasses.map((cls) => (
-								<TableRow key={cls.CREDIT_CLASS_ID}>
-									<TableCell>
-										<button
-											onClick={() => handleCreditClassIdClick(cls)}
-											className='text-blue-600 hover:text-blue-800 hover:underline font-medium'
-										>
-											{cls.CREDIT_CLASS_ID}
-										</button>
-									</TableCell>
-									<TableCell>{cls.ACADEMIC_YEAR}</TableCell>
-									<TableCell>
-										<Badge variant='secondary'>{cls.SEMESTER}</Badge>
-									</TableCell>
-									<TableCell>
-										<div className='max-w-[200px]'>
-											<div className='font-medium text-sm'>
-												{cls.SUBJECT_NAME}
-											</div>
-											<div className='text-xs text-gray-500'>
-												{cls.SUBJECT_ID}
-											</div>
-										</div>
-									</TableCell>
-									<TableCell>
-										<Badge variant='outline'>{cls.GROUP_NUMBER}</Badge>
-									</TableCell>
-									<TableCell>
-										<div className='text-sm'>{cls.LECTURER_NAME}</div>
-									</TableCell>
-									<TableCell>
-										<Badge variant='secondary'>{cls.FACULTY_ID}</Badge>
-									</TableCell>
-									<TableCell>{cls.MIN_STUDENTS}</TableCell>
-									<TableCell>
-										{cls.CANCELED_CLASS ? (
-											<Badge variant='destructive'>Canceled</Badge>
-										) : (
-											<Badge variant='default'>Active</Badge>
-										)}
-									</TableCell>
-									<TableCell>
-										<Button
-											onClick={() => {
-												setSelectedClassForDelete(cls);
-												setIsDeleteDialogOpen(true);
-											}}
-											size='sm'
-											variant='outline'
-											className='h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50'
-										>
-											<Trash2 className='h-4 w-4' />
-										</Button>
+										No credit classes found matching your criteria
 									</TableCell>
 								</TableRow>
-							))
-						)}
-					</TableBody>
-				</Table>
-			</CardContent>
-		</Card>
+							) : (
+								filteredClasses.map((cls) => (
+									<TableRow key={cls.CREDIT_CLASS_ID}>
+										<TableCell>
+											<button
+												onClick={() => handleCreditClassIdClick(cls)}
+												className='text-blue-600 hover:text-blue-800 hover:underline font-medium'
+											>
+												{cls.CREDIT_CLASS_ID}
+											</button>
+										</TableCell>
+										<TableCell>{cls.ACADEMIC_YEAR}</TableCell>
+										<TableCell>
+											<Badge variant='secondary'>{cls.SEMESTER}</Badge>
+										</TableCell>
+										<TableCell>
+											<div className='max-w-[200px]'>
+												<div className='font-medium text-sm'>
+													{cls.SUBJECT_NAME}
+												</div>
+												<div className='text-xs text-gray-500'>
+													{cls.SUBJECT_ID}
+												</div>
+											</div>
+										</TableCell>
+										<TableCell>
+											<Badge variant='outline'>{cls.GROUP_NUMBER}</Badge>
+										</TableCell>
+										<TableCell>
+											<div className='text-sm'>{cls.LECTURER_NAME}</div>
+										</TableCell>
+										<TableCell>
+											<Badge variant='secondary'>{cls.FACULTY_ID}</Badge>
+										</TableCell>
+										<TableCell>{cls.MIN_STUDENTS}</TableCell>
+										<TableCell>
+											{cls.CANCELED_CLASS ? (
+												<Badge variant='destructive'>Canceled</Badge>
+											) : (
+												<Badge variant='default'>Active</Badge>
+											)}
+										</TableCell>
+										<TableCell>
+											<Button
+												onClick={() => {
+													setSelectedClassForDelete(cls);
+													setIsDeleteDialogOpen(true);
+												}}
+												size='sm'
+												variant='outline'
+												className='h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50'
+											>
+												<Trash2 className='h-4 w-4' />
+											</Button>
+										</TableCell>
+									</TableRow>
+								))
+							)}
+						</TableBody>
+					</Table>
+				</CardContent>
+			</Card>
 
-		{/* Delete Confirmation Dialog */}
-		<AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-			<AlertDialogContent>
-				<AlertDialogHeader>
-					<AlertDialogTitle>Delete Credit Class</AlertDialogTitle>
-					<AlertDialogDescription>
-						Are you sure you want to delete credit class{' '}
-						<strong>{selectedClassForDelete?.CREDIT_CLASS_ID}</strong>? This action
-						cannot be undone.
-					</AlertDialogDescription>
-				</AlertDialogHeader>
-				<AlertDialogFooter>
-					<AlertDialogCancel disabled={isSubmitting}>Cancel</AlertDialogCancel>
-					<AlertDialogAction
-						onClick={handleDeleteCreditClass}
-						className='bg-red-600 hover:bg-red-700'
-						disabled={isSubmitting}
-					>
-						{isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-						Delete
-					</AlertDialogAction>
-				</AlertDialogFooter>
-			</AlertDialogContent>
-		</AlertDialog>
+			{/* Delete Confirmation Dialog */}
+			<AlertDialog
+				open={isDeleteDialogOpen}
+				onOpenChange={setIsDeleteDialogOpen}
+			>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Delete Credit Class</AlertDialogTitle>
+						<AlertDialogDescription>
+							Are you sure you want to delete credit class{' '}
+							<strong>{selectedClassForDelete?.CREDIT_CLASS_ID}</strong>? This
+							action cannot be undone.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel disabled={isSubmitting}>
+							Cancel
+						</AlertDialogCancel>
+						<AlertDialogAction
+							onClick={handleDeleteCreditClass}
+							className='bg-red-600 hover:bg-red-700'
+							disabled={isSubmitting}
+						>
+							{isSubmitting && (
+								<Loader2 className='mr-2 h-4 w-4 animate-spin' />
+							)}
+							Delete
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 
-		<Toaster />
-	</div>
-);
+			<Toaster />
+		</div>
+	);
 }
-

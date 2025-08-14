@@ -152,7 +152,6 @@ export default function ClassesPage() {
 				console.error('Error loading departments:', error);
 				toast.error({
 					title: 'Failed to load departments',
-		
 				});
 			} finally {
 				setIsLoading(false);
@@ -179,7 +178,6 @@ export default function ClassesPage() {
 				} else {
 					toast.error({
 						title: data.error || 'Failed to load classes',
-						
 					});
 					setClassData([]);
 				}
@@ -227,7 +225,7 @@ export default function ClassesPage() {
 		} catch (error) {
 			toast.error({
 				title: 'Failed to refresh departments',
-				});
+			});
 		} finally {
 			setIsLoading(false);
 		}
@@ -244,7 +242,7 @@ export default function ClassesPage() {
 			);
 			const data = await response.json();
 
-			let facultyId = 'CNTT'; // Default fallback
+			let facultyId = 'IT'; // Default fallback
 			if (data.success) {
 				facultyId = data.facultyId;
 			} else {
@@ -455,7 +453,8 @@ export default function ClassesPage() {
 				}
 			} else {
 				toast.error({
-					title: data.error || 'Failed to delete class.',				});
+					title: data.error || 'Failed to delete class.',
+				});
 			}
 		} catch (error) {
 			toast.error({
