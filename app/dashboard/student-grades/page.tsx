@@ -92,23 +92,55 @@ const fetchAcademicYears = async (
 	if (!data.success) {
 		throw new Error(data.error || 'Failed to fetch academic years');
 	}
-	return data.academicYears || [];
+
+	// Transform string array to AcademicYear objects
+	const academicYears = (data.academicYears || []).map((year: string) => ({
+		value: year,
+		label: year,
+	}));
+
+	return academicYears;
 };
 
 const fetchSemesters = async (
 	department: string,
 	academicYear: string,
 ): Promise<Semester[]> => {
-	const response = await fetch(
-		`/api/semesters?department=${encodeURIComponent(
+	try {
+		console.log('Fetching semesters with params:', {
 			department,
-		)}&academicYear=${encodeURIComponent(academicYear)}`,
-	);
-	const data = await response.json();
-	if (!data.success) {
-		throw new Error(data.error || 'Failed to fetch semesters');
+			academicYear,
+		});
+		const url = `/api/semesters?department=${encodeURIComponent(
+			department,
+		)}&academicYear=${encodeURIComponent(academicYear)}`;
+		console.log('Semester API URL:', url);
+
+		const response = await fetch(url);
+		console.log('Semester API response status:', response.status);
+
+		if (!response.ok) {
+			throw new Error(`HTTP error! status: ${response.status}`);
+		}
+
+		const data = await response.json();
+		console.log('Semester API response data:', data);
+
+		if (!data.success) {
+			throw new Error(data.error || 'Failed to fetch semesters');
+		}
+
+		// Transform string array to Semester objects
+		const semesters = (data.semesters || []).map((semester: string) => ({
+			value: semester,
+			label: `Semester ${semester}`,
+		}));
+
+		return semesters;
+	} catch (error) {
+		console.error('Error in fetchSemesters:', error);
+		throw error;
 	}
-	return data.semesters || [];
 };
 
 const fetchGroups = async (
@@ -275,6 +307,9 @@ export default function StudentGradesPage() {
 			});
 			const loadSemesters = async () => {
 				try {
+					// Reset semesters before loading new ones
+					setSemesters([]);
+
 					const semestersData = await fetchSemesters(
 						selectedDepartment,
 						selectedYear,
@@ -283,16 +318,18 @@ export default function StudentGradesPage() {
 					setSemesters(semestersData);
 				} catch (err) {
 					console.error('Error loading semesters:', err);
+					setSemesters([]); // Reset on error
 					const errorMessage =
 						err instanceof Error ? err.message : 'Failed to load semesters';
 					toast.error({
-						title: errorMessage,
+						title: `Error loading semesters: ${errorMessage}`,
 					});
 				}
 			};
 
 			loadSemesters();
 		} else {
+			console.log('Clearing semesters - missing department or year');
 			setSemesters([]);
 		}
 	}, [selectedDepartment, selectedYear]);
@@ -365,11 +402,16 @@ export default function StudentGradesPage() {
 				selectedSubject,
 			);
 
-			setStudentGrades(enrollmentList);
+			// Filter out duplicates based on studentId to ensure unique keys
+			const uniqueEnrollmentList = enrollmentList.filter(
+				(grade, index, self) =>
+					index === self.findIndex((g) => g.studentId === grade.studentId),
+			);
+			setStudentGrades(uniqueEnrollmentList);
 			setIsGradesVisible(true);
 
 			toast.success({
-				title: `Loaded grades for ${enrollmentList.length} students`,
+				title: `Loaded grades for ${uniqueEnrollmentList.length} students`,
 			});
 		} catch (err) {
 			const errorMessage =
@@ -530,7 +572,13 @@ export default function StudentGradesPage() {
 								<Label htmlFor='year'>Academic Year</Label>
 								<Select
 									value={selectedYear}
-									onValueChange={setSelectedYear}
+									onValueChange={(value) => {
+										console.log('Academic year selected:', value);
+										setSelectedYear(value);
+										// Reset dependent selections
+										setSelectedSemester('');
+										setSelectedGroup('');
+									}}
 									disabled={!selectedDepartment}
 								>
 									<SelectTrigger>
@@ -716,9 +764,9 @@ export default function StudentGradesPage() {
 									</TableRow>
 								</TableHeader>
 								<TableBody>
-									{studentGrades.map((grade) => (
+									{studentGrades.map((grade, index) => (
 										<TableRow
-											key={grade.studentId}
+											key={`${grade.studentId}-${index}`}
 											className='hover:bg-gray-50'
 										>
 											<TableCell className='font-medium'>

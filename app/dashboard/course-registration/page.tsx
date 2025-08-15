@@ -399,8 +399,7 @@ function CourseRegistrationPageContent() {
 				);
 
 				toast.success({
-					title: `Search completed successfully`,
-					description: `Found ${data.creditClasses.length} available classes for ${academicYear} - Semester ${semester}`,
+					title: `Found ${data.creditClasses.length} available classes for ${academicYear} - Semester ${semester}`,
 				});
 			} else {
 				toast.error({
@@ -435,8 +434,7 @@ function CourseRegistrationPageContent() {
 		// Check if already enrolled
 		if (isAlreadyEnrolled(classData)) {
 			toast.error({
-				title: 'Already Enrolled',
-				description: `You are already enrolled in ${classData.SUBJECT_NAME} - Group ${classData.GROUP_NUMBER}`,
+				title: `Already enrolled in ${classData.SUBJECT_NAME} - Group ${classData.GROUP_NUMBER}`,
 			});
 			return;
 		}
@@ -486,8 +484,7 @@ function CourseRegistrationPageContent() {
 				console.log('🎉 Registration successful, triggering refresh...');
 
 				toast.success({
-					title: 'Registration Successful',
-					description: `Successfully registered for ${selectedClassForRegistration.SUBJECT_NAME}`,
+					title: `Successfully registered for ${selectedClassForRegistration.SUBJECT_NAME}`,
 				});
 
 				// Force refresh enrolled classes by updating trigger
@@ -497,15 +494,13 @@ function CourseRegistrationPageContent() {
 				}, 500);
 			} else {
 				toast.error({
-					title: 'Registration Failed',
-					description: data.error || 'Failed to register for the class',
+					title: data.error || 'Failed to register for the class',
 				});
 			}
 		} catch (error) {
 			console.error('Error registering for class:', error);
 			toast.error({
-				title: 'Registration Error',
-				description: 'An error occurred while registering for the class',
+				title: 'An error occurred while registering for the class',
 			});
 		} finally {
 			setIsLoading(false);
@@ -552,8 +547,7 @@ function CourseRegistrationPageContent() {
 				console.log('🗑️ Cancellation successful, triggering refresh...');
 
 				toast.success({
-					title: 'Cancellation Successful',
-					description: `Successfully cancelled enrollment for ${selectedClassForCancellation.SUBJECT_NAME}`,
+					title: `Successfully cancelled enrollment for ${selectedClassForCancellation.SUBJECT_NAME}`,
 				});
 
 				// Force refresh enrolled classes by updating trigger
@@ -565,15 +559,13 @@ function CourseRegistrationPageContent() {
 				}, 500);
 			} else {
 				toast.error({
-					title: 'Cancellation Failed',
-					description: data.error || 'Failed to cancel enrollment',
+					title: data.error || 'Failed to cancel enrollment',
 				});
 			}
 		} catch (error) {
 			console.error('Error cancelling enrollment:', error);
 			toast.error({
-				title: 'Cancellation Error',
-				description: 'An error occurred while cancelling enrollment',
+				title: 'An error occurred while cancelling enrollment',
 			});
 		} finally {
 			setIsLoading(false);

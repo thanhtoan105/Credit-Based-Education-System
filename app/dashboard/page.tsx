@@ -2,9 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import StatsCard from '@/components/dashboard/stats-card';
-import ActivityChart from '@/components/dashboard/activity-chart';
-import RecentCourses from '@/components/dashboard/recent-courses';
-import CalendarWidget from '@/components/dashboard/calendar-widget';
 import { Badge } from '@/components/ui/badge';
 import {
 	GraduationCap,
@@ -12,15 +9,13 @@ import {
 	BookOpen,
 	TrendingUp,
 	DollarSign,
-	Calendar,
 	ClipboardList,
 	Award,
 	Building,
 	Shield,
-	FileText,
 	Database,
 } from 'lucide-react';
-import { User, getRoleDisplayName, canAccessData } from '@/lib/auth';
+import { User, getRoleDisplayName } from '@/lib/auth';
 import { getCurrentUser } from '@/lib/session';
 import { MultiAuthUser } from '@/lib/services/multi-auth.service';
 import { toast } from '@/lib/toast';
@@ -396,211 +391,6 @@ export default function Dashboard() {
 						description={stat.description}
 					/>
 				))}
-			</div>
-
-			{/* Main Content Grid */}
-			<div className='grid grid-cols-1 lg:grid-cols-7 gap-6'>
-				<ActivityChart />
-				<RecentCourses />
-			</div>
-
-			{/* Secondary Content */}
-			<div className='grid grid-cols-1 lg:grid-cols-2 gap-6'>
-				<CalendarWidget />
-
-				{/* Role-specific Quick Actions */}
-				<div className='bg-white rounded-md p-6 border border-gray-200'>
-					<h3 className='text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2'>
-						<GraduationCap className='h-5 w-5' />
-						Quick Actions
-					</h3>
-					<div className='grid grid-cols-2 gap-4'>
-						{userRole === 'PGV' && (
-							<>
-								<button className='p-4 bg-blue-50 hover:bg-blue-100 rounded-lg text-left transition-colors group'>
-									<Users className='h-8 w-8 text-blue-600 mb-2 group-hover:scale-110 transition-transform' />
-									<div className='font-medium text-gray-900'>
-										Manage Students
-									</div>
-									<div className='text-sm text-gray-500'>
-										Add or edit student records
-									</div>
-								</button>
-								<button className='p-4 bg-purple-50 hover:bg-purple-100 rounded-lg text-left transition-colors group'>
-									<GraduationCap className='h-8 w-8 text-purple-600 mb-2 group-hover:scale-110 transition-transform' />
-									<div className='font-medium text-gray-900'>
-										Create Classes
-									</div>
-									<div className='text-sm text-gray-500'>
-										Set up new academic classes
-									</div>
-								</button>
-								<button className='p-4 bg-green-50 hover:bg-green-100 rounded-lg text-left transition-colors group'>
-									<Building className='h-8 w-8 text-green-600 mb-2 group-hover:scale-110 transition-transform' />
-									<div className='font-medium text-gray-900'>Departments</div>
-									<div className='text-sm text-gray-500'>
-										Manage faculty departments
-									</div>
-								</button>
-								<button className='p-4 bg-orange-50 hover:bg-orange-100 rounded-lg text-left transition-colors group'>
-									<FileText className='h-8 w-8 text-orange-600 mb-2 group-hover:scale-110 transition-transform' />
-									<div className='font-medium text-gray-900'>Reports</div>
-									<div className='text-sm text-gray-500'>
-										Generate system reports
-									</div>
-								</button>
-							</>
-						)}
-
-						{userRole === 'KHOA' && (
-							<>
-								<button className='p-4 bg-blue-50 hover:bg-blue-100 rounded-lg text-left transition-colors group'>
-									<ClipboardList className='h-8 w-8 text-blue-600 mb-2 group-hover:scale-110 transition-transform' />
-									<div className='font-medium text-gray-900'>Enter Grades</div>
-									<div className='text-sm text-gray-500'>
-										Update student grades
-									</div>
-								</button>
-								<button className='p-4 bg-purple-50 hover:bg-purple-100 rounded-lg text-left transition-colors group'>
-									<BookOpen className='h-8 w-8 text-purple-600 mb-2 group-hover:scale-110 transition-transform' />
-									<div className='font-medium text-gray-900'>
-										Manage Subjects
-									</div>
-									<div className='text-sm text-gray-500'>
-										Edit course catalog
-									</div>
-								</button>
-								<button className='p-4 bg-green-50 hover:bg-green-100 rounded-lg text-left transition-colors group'>
-									<Users className='h-8 w-8 text-green-600 mb-2 group-hover:scale-110 transition-transform' />
-									<div className='font-medium text-gray-900'>
-										Department Students
-									</div>
-									<div className='text-sm text-gray-500'>
-										View student records
-									</div>
-								</button>
-								<button className='p-4 bg-orange-50 hover:bg-orange-100 rounded-lg text-left transition-colors group'>
-									<FileText className='h-8 w-8 text-orange-600 mb-2 group-hover:scale-110 transition-transform' />
-									<div className='font-medium text-gray-900'>
-										Department Reports
-									</div>
-									<div className='text-sm text-gray-500'>
-										Generate department reports
-									</div>
-								</button>
-							</>
-						)}
-
-						{userRole === 'SV' && (
-							<>
-								<button className='p-4 bg-cyan-50 hover:bg-cyan-100 rounded-lg text-left transition-colors group'>
-									<Calendar className='h-8 w-8 text-cyan-600 mb-2 group-hover:scale-110 transition-transform' />
-									<div className='font-medium text-gray-900'>
-										Register Courses
-									</div>
-									<div className='text-sm text-gray-500'>
-										Enroll in new classes
-									</div>
-								</button>
-								<button className='p-4 bg-pink-50 hover:bg-pink-100 rounded-lg text-left transition-colors group'>
-									<Award className='h-8 w-8 text-pink-600 mb-2 group-hover:scale-110 transition-transform' />
-									<div className='font-medium text-gray-900'>View Grades</div>
-									<div className='text-sm text-gray-500'>
-										Check your transcript
-									</div>
-								</button>
-								<button className='p-4 bg-yellow-50 hover:bg-yellow-100 rounded-lg text-left transition-colors group'>
-									<DollarSign className='h-8 w-8 text-yellow-600 mb-2 group-hover:scale-110 transition-transform' />
-									<div className='font-medium text-gray-900'>
-										Tuition Status
-									</div>
-									<div className='text-sm text-gray-500'>
-										Check payment status
-									</div>
-								</button>
-								<button className='p-4 bg-indigo-50 hover:bg-indigo-100 rounded-lg text-left transition-colors group'>
-									<FileText className='h-8 w-8 text-indigo-600 mb-2 group-hover:scale-110 transition-transform' />
-									<div className='font-medium text-gray-900'>
-										Academic Records
-									</div>
-									<div className='text-sm text-gray-500'>
-										View your transcript
-									</div>
-								</button>
-							</>
-						)}
-
-						{userRole === 'PKT' && (
-							<>
-								<button className='p-4 bg-green-50 hover:bg-green-100 rounded-lg text-left transition-colors group'>
-									<DollarSign className='h-8 w-8 text-green-600 mb-2 group-hover:scale-110 transition-transform' />
-									<div className='font-medium text-gray-900'>
-										Tuition Management
-									</div>
-									<div className='text-sm text-gray-500'>
-										Update payment records
-									</div>
-								</button>
-								<button className='p-4 bg-blue-50 hover:bg-blue-100 rounded-lg text-left transition-colors group'>
-									<TrendingUp className='h-8 w-8 text-blue-600 mb-2 group-hover:scale-110 transition-transform' />
-									<div className='font-medium text-gray-900'>
-										Financial Reports
-									</div>
-									<div className='text-sm text-gray-500'>
-										Generate payment reports
-									</div>
-								</button>
-								<button className='p-4 bg-purple-50 hover:bg-purple-100 rounded-lg text-left transition-colors group'>
-									<ClipboardList className='h-8 w-8 text-purple-600 mb-2 group-hover:scale-110 transition-transform' />
-									<div className='font-medium text-gray-900'>
-										Outstanding Fees
-									</div>
-									<div className='text-sm text-gray-500'>
-										Track pending payments
-									</div>
-								</button>
-								<button className='p-4 bg-orange-50 hover:bg-orange-100 rounded-lg text-left transition-colors group'>
-									<Users className='h-8 w-8 text-orange-600 mb-2 group-hover:scale-110 transition-transform' />
-									<div className='font-medium text-gray-900'>
-										Student Accounts
-									</div>
-									<div className='text-sm text-gray-500'>
-										Manage payment accounts
-									</div>
-								</button>
-							</>
-						)}
-					</div>
-				</div>
-			</div>
-
-			{/* Data Access Information Footer */}
-			<div className='bg-gray-50 rounded-md p-4 border'>
-				<div className='flex items-center justify-between'>
-					<div className='flex items-center gap-2'>
-						<Shield className='h-4 w-4 text-green-600' />
-						<span className='text-sm font-medium text-gray-700'>
-							Current Session:
-						</span>
-						<span className='text-sm text-gray-600'>{getDataAccessInfo()}</span>
-					</div>
-					<div className='flex items-center gap-4 text-xs text-gray-500'>
-						<span>
-							Permissions:{' '}
-							{'permissions' in user && user.permissions
-								? user.permissions.length
-								: 0}{' '}
-							active
-						</span>
-						{'canCreateAccounts' in user &&
-							user.canCreateAccounts &&
-							user.canCreateAccounts.length > 0 && (
-								<span>
-									Account Creation: {user.canCreateAccounts.length} types
-								</span>
-							)}
-					</div>
-				</div>
 			</div>
 		</div>
 	);

@@ -109,12 +109,6 @@ const allNavItems = [
 				icon: FileText,
 				page: 'reports' as DashboardPage,
 			},
-			{
-				title: 'Settings',
-				url: '/dashboard/settings',
-				icon: Settings,
-				page: 'settings' as DashboardPage,
-			},
 		],
 	},
 ];

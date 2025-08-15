@@ -84,6 +84,36 @@ interface PaymentDetailsModalState {
 	error: string | null;
 }
 
+interface Student {
+	id: string;
+	name: string;
+	class: string;
+	departmentCode: string;
+	year: string;
+	email: string;
+}
+
+interface TuitionRecord {
+	id: string;
+	studentId: string;
+	academicYear: string;
+	semester: number;
+	tuitionFee: number;
+	amountPaid: number;
+	amountDue: number;
+	status: PaymentStatus;
+}
+
+interface PaymentDetail {
+	id: string;
+	tuitionRecordId: string;
+	amount: number;
+	paymentDate: string;
+	paymentMethod: string;
+	transactionId: string;
+	notes?: string;
+}
+
 // Mock data
 const mockStudents: Student[] = [
 	{
@@ -133,31 +163,31 @@ const initialTuitionRecords: TuitionRecord[] = [
 		id: 'TR001',
 		studentId: 'SV001',
 		academicYear: '2024-2025',
-		semester: '1',
+		semester: 1,
 		tuitionFee: 15000000,
 		amountPaid: 15000000,
 		amountDue: 0,
-		status: 'paid',
+		status: PaymentStatus.PAID,
 	},
 	{
 		id: 'TR002',
 		studentId: 'SV001',
 		academicYear: '2024-2025',
-		semester: '2',
+		semester: 2,
 		tuitionFee: 15000000,
 		amountPaid: 10000000,
 		amountDue: 5000000,
-		status: 'partial',
+		status: PaymentStatus.PARTIAL,
 	},
 	{
 		id: 'TR003',
 		studentId: 'SV001',
 		academicYear: '2023-2024',
-		semester: '1',
+		semester: 1,
 		tuitionFee: 14000000,
 		amountPaid: 14000000,
 		amountDue: 0,
-		status: 'paid',
+		status: PaymentStatus.PAID,
 	},
 ];
 
@@ -165,25 +195,28 @@ const initialPaymentDetails: PaymentDetail[] = [
 	{
 		id: 'PD001',
 		tuitionRecordId: 'TR001',
+		amount: 15000000,
 		paymentDate: '2024-01-15',
-		amountPaid: 15000000,
 		paymentMethod: 'Bank Transfer',
+		transactionId: 'TXN001',
 		notes: 'Full payment for semester 1',
 	},
 	{
 		id: 'PD002',
 		tuitionRecordId: 'TR002',
+		amount: 10000000,
 		paymentDate: '2024-02-20',
-		amountPaid: 10000000,
 		paymentMethod: 'Cash',
+		transactionId: 'TXN002',
 		notes: 'Partial payment',
 	},
 	{
 		id: 'PD003',
 		tuitionRecordId: 'TR003',
+		amount: 14000000,
 		paymentDate: '2023-08-10',
-		amountPaid: 14000000,
 		paymentMethod: 'Bank Transfer',
+		transactionId: 'TXN003',
 		notes: 'Full payment for semester 1',
 	},
 ];
@@ -462,7 +495,10 @@ export default function TuitionPaymentPage() {
 			isOpen: true,
 			studentId: record.studentId,
 			academicYear: record.ACADEMIC_YEAR,
-			semester: parseInt(record.SEMESTER),
+			semester:
+				typeof record.SEMESTER === 'string'
+					? parseInt(record.SEMESTER)
+					: record.SEMESTER,
 			isLoading: false,
 		});
 		setPaymentFormData({
